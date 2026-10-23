@@ -8,7 +8,8 @@ for(const button of document.querySelectorAll('[data-suite-tab]')){
  button.addEventListener('click',()=>suiteTab(button.dataset.suiteTab));
  button.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();const tabs=[...document.querySelectorAll('[data-suite-tab]')],offset=event.key==='ArrowRight'?1:-1,target=tabs[(tabs.indexOf(button)+offset+tabs.length)%tabs.length];suiteTab(target.dataset.suiteTab);target.focus();}});
 }
-suiteTab('parameter');
+const requestedSuiteTool=typeof window.location==='object'?new URLSearchParams(window.location.search).get('tool'):null;
+suiteTab(['parameter','datefix','mraid','review'].includes(requestedSuiteTool)?requestedSuiteTool:'parameter');
 let pendingCreativeType=null,typeRequest=0,lastMraidReport=null,selectedCreativeType=null;
 function renderMraid(report){
  const mode=selectedCreativeType??pendingCreativeType;

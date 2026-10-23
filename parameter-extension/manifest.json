@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EC-FIX-IT",
-  "version": "1.9.8",
+  "version": "2.0.0",
   "description": "Test SIP/MIP date and language parameters, check MRAID and size limits, fix HTML, compress creatives and collect reviews.",
   "permissions": [
     "activeTab",
@@ -45,7 +45,6 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_title": "EC-FIX-IT",
     "default_icon": {
       "16": "ec-logo-w.png",
@@ -53,5 +52,10 @@
       "48": "ec-logo-w.png",
       "128": "ec-logo-w.png"
     }
+  },
+  "externally_connectable": {
+    "matches": [
+      "https://franciaemilhplgamedesign-tech.github.io/*"
+    ]
   }
 }
