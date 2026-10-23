@@ -83,3 +83,7 @@ The extension checks main/parameter-extension/manifest.json in franciaemilhplgam
 
 Maintainers: commit the latest files inside parameter-extension/ and increase manifest.json version for every release. Changes without a higher version do not trigger the update badge. Chrome/Edge store publication is needed for normal end-user automatic installation. If the repository becomes private, unauthenticated update checks will fail; no GitHub tokens are embedded.
 
+
+## Version 1.7.1 — update-check connection fix
+Manual update checks now run directly in the checker window, so they work without a background message receiver. Opening the checker also retries stale or failed checks. Cached update availability is compared with the installed version. After replacing extension files, click Reload on chrome://extensions or edge://extensions and close/reopen any previously detached checker windows; an old window can retain an invalid extension context.
+

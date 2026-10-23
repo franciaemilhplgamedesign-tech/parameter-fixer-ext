@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Parameter Checker",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Set one preview date across AppLovin iterations or local SIP/MIP HTML files.",
   "permissions": ["activeTab", "storage", "scripting", "alarms"],
   "host_permissions": ["https://playable.applovindemo.com/*", "https://raw.githubusercontent.com/franciaemilhplgamedesign-tech/parameter-fixer-ext/*"],
