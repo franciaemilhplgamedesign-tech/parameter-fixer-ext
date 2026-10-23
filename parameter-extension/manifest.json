@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Parameter Checker",
+  "version": "1.6.4",
+  "description": "Set one preview date across AppLovin iterations or local SIP/MIP HTML files.",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": ["https://playable.applovindemo.com/*"],
+  "action": {"default_popup": "popup.html", "default_title": "Parameter Checker"}
+}
