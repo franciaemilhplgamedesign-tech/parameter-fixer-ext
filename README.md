@@ -1,21 +1,22 @@
 # EC-FIX-IT extension
 
-Chrome and Microsoft Edge companion for SIP/MIP parameter testing, HTML fixes, automatic local source checks, compression and screenshot review.
+Chrome and Microsoft Edge extension for SIP/MIP parameter testing, HTML fixes, automatic source checks, compression and screenshot review. The complete interface runs locally in the toolbar popup. The hosted dashboard has been removed.
 
-## Extension popup and optional hosted dashboard
+## Tools
 
-[Open EC-FIX-IT](https://franciaemilhplgamedesign-tech.github.io/parameter-fixer-ext/). The extension icon opens the normal toolbar popup. To connect the optional dashboard, open it using Open hosted dashboard in the popup. The dashboard is hosted through GitHub Pages; browser permissions and engines remain bundled in the extension.
+- Parameters: date/language testing for AppLovin iterations, local HTML and localhost; automatic holiday ranges, Previous/Next and auto-refresh.
+- Parameter Fixer: supported date/language patches for current or bulk HTML files.
+- Checker: MRAID/source checks, networking and WebGL safeguards, end-scene packaging, MIP 5 MB / SIP 3.4 MB limits, fixes and compression.
+- Review: screenshots and original HTML collection, maximum 20 files total across HTML and images, export and configured ecomm checker transfer.
 
-Hosted Parameters applies date/language across AppLovin iterations or a local/localhost preview. Hosted Checker automatically displays local source findings and selected MIP 5 MB / SIP 3.4 MB limits. Full range controls, bulk fixing, fixes/compression and screenshot Review open in the installed companion. Existing review storage is preserved when updating the same unpacked installation.
+Version 2.1.1 includes Orivelle tuple-schedule detection (37 ranges in each of the ten supplied files), original source detection fallback, and the atomic combined Review cap. Static checks are review aids, not certification. Live ChatGPT transfer remains unverified.
 
-## Install and update
+## Install / update
 
-Get the ZIP from the [latest release](https://github.com/franciaemilhplgamedesign-tech/parameter-fixer-ext/releases/latest). Extract to a permanent folder, enable Developer mode on your extensions page, choose Load unpacked and select the folder containing manifest.json. Enable Allow access to file URLs for local HTML inspection.
+Download the ZIP from the latest GitHub release. Extract to a permanent folder, enable Developer mode on the browser extensions page, choose Load unpacked and select the folder containing manifest.json. Enable Allow access to file URLs for local previews.
 
-To update, replace files in the existing installation folder, click Reload, and close/reopen old companion windows. Do not uninstall to preserve review data. Version 2.0.1 restores the toolbar popup as the default. The optional hosted dashboard uses the installed bridge.
+For an existing installation, replace files in the same folder and click Reload. Do not uninstall to preserve Review storage. Close old detached/container windows and reopen from the toolbar icon.
 
-Hosted UI changes can deploy without reinstalling; engines, permissions and browser automation still need extension updates. The dashboard does not upload creative HTML or screenshots to GitHub. Session-bound fixed commands connect it to the installed companion.
-
-See [v2.0.0 notes](RELEASE-NOTES-v2.0.0.md) for setup, data handling, testing and limitations, and [v1.9.7 functional notes / Slack announcement](RELEASE-NOTES-v1.9.7.md) for the complete toolset. Static checks are review aids, not certification. Test fixed creatives in the target ad container. Live ChatGPT transfer remains unverified.
+Current GitHub checks notify about updates; ZIP downloads do not install themselves. Unattended full-package updates require browser-managed distribution or a separately installed updater. No automatic file-replacement helper is included in v2.1.1.
 
 Created By: Emil Son Francia | October 2026

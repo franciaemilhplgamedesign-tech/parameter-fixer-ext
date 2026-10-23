@@ -62,8 +62,22 @@ autoRefresh.addEventListener('change',async()=>{
 async function scanHolidays(){
  const refreshButton=document.getElementById('inspect');refreshButton.disabled=true;refreshButton.textContent='Detecting holidays…';
  try{
-  const frames=await chrome.scripting.executeScript({target:{tabId:currentTab.id,allFrames:true},func:()=>({url:location.href,html:document.documentElement.outerHTML})});
-  const ranges=frames.flatMap(f=>inspectCreativeHtml(f.result?.html||'').ranges);
+  const ranges=[],readErrors=[];
+  const latest=await chrome.tabs.get(currentTab.id);currentTab=latest;
+  const originalUrl=new URL(currentTab.url);
+  if(originalUrl.protocol==='file:'||['localhost','127.0.0.1','[::1]'].includes(originalUrl.hostname)||originalUrl.hostname.endsWith('.localhost')){
+    try{
+      if(originalUrl.protocol==='file:'){originalUrl.search='';originalUrl.hash='';}
+      const response=await fetch(originalUrl.href,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+      if(!response.ok&&response.status!==0)throw new Error('Could not read source HTML: '+response.status);
+      ranges.push(...inspectCreativeHtml(await response.text()).ranges);
+    }catch(error){readErrors.push(error.message);}
+  }
+  try{
+    const frames=await chrome.scripting.executeScript({target:{tabId:currentTab.id,allFrames:true},func:()=>({url:location.href,html:document.documentElement.outerHTML})});
+    ranges.push(...frames.flatMap(f=>inspectCreativeHtml(f.result?.html||'').ranges));
+  }catch(error){readErrors.push(error.message);}
+  if(!ranges.length&&readErrors.length===2)throw new Error(readErrors.join(' '));
   // AppLovin keeps other iterations unloaded: inspect their same-origin HTML too.
   const tabUrl=new URL(currentTab.url);
   if(tabUrl.hostname==='playable.applovindemo.com'){

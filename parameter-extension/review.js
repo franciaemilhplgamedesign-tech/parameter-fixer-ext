@@ -1,3 +1,4 @@
+const REVIEW_MAX_FILES=20;
 const REVIEW_PROMPT='check for grammar and filename';
 const REVIEW_URL='https://chatgpt.com/g/g-p-6aba53db995c819187554fe66297a936-emil-francia-ecomm-checker/c/6aba5459-e97c-83ec-9e60-8c167d76c1ab';
 let reviewDbPromise,reviewUrls=[];
@@ -15,9 +16,21 @@ async function reviewStore(mode,operation){
   tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Storage operation cancelled.'));
  });
 }
+// Count and insert in one transaction so simultaneous popup windows share the cap.
+async function reviewPutFile(item){
+ const db=await reviewDb();return new Promise((resolve,reject)=>{
+  const tx=db.transaction('items','readwrite'),store=tx.objectStore('items'),request=store.getAll();let capacityError;
+  request.onsuccess=()=>{
+   const files=request.result.filter(i=>i.kind==='html'||i.kind==='image');
+   if(!files.some(i=>i.id===item.id)&&files.length>=REVIEW_MAX_FILES){capacityError=new Error('Review is limited to 20 files total (HTML + images). Delete files before adding more.');tx.abort();return;}
+   store.put(item);
+  };
+  tx.oncomplete=()=>resolve();tx.onerror=()=>reject(capacityError||tx.error);tx.onabort=()=>reject(capacityError||tx.error||new Error('Review save cancelled.'));
+ });
+}
 async function saveScreenshot(blob,name,metadata){
  try{await collectLocalHtml(metadata.sourceUrl);}catch(error){document.getElementById('review-status').textContent=error.message;}
- await reviewStore('readwrite',store=>store.put({id:crypto.randomUUID(),kind:'image',name,blob,metadata,selected:true,created:Date.now()}));
+ await reviewPutFile({id:crypto.randomUUID(),kind:'image',name,blob,metadata,selected:true,created:Date.now()});
  await renderReview();
 }
 function localHtmlSource(input){
@@ -35,7 +48,7 @@ async function collectLocalHtml(input){
  if(!response.ok && response.status!==0)throw new Error('Could not read local HTML: '+response.status);
  const blob=await response.blob(),id='html:'+source.url;
  const previous=await reviewStore('readonly',store=>store.get(id));
- await reviewStore('readwrite',store=>store.put({id,kind:'html',name:source.name,blob,selected:previous?previous.selected:true,created:previous?.created||Date.now(),metadata:{sourceUrl:source.url,previewUrl:input}}));
+ await reviewPutFile({id,kind:'html',name:source.name,blob,selected:previous?previous.selected:true,created:previous?.created||Date.now(),metadata:{sourceUrl:source.url,previewUrl:input}});
  await renderReview();
  document.getElementById('review-source').textContent='Original HTML collected automatically.';
  return true;
@@ -44,7 +57,7 @@ async function collectCurrentLocalHtml(){
  try{if(typeof currentTab==='undefined'||!currentTab)return;const tab=await chrome.tabs.get(currentTab.id);await collectLocalHtml(tab.url);}catch(error){document.getElementById('review-status').textContent=error.message;}
 }
 async function renderReview(){
- const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.kind!=='send-job').sort((a,b)=>a.created-b.created);
+ const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.kind==='html'||i.kind==='image').sort((a,b)=>a.created-b.created);
  const gallery=document.getElementById('review-gallery');gallery.replaceChildren();reviewUrls.forEach(URL.revokeObjectURL);reviewUrls=[];
  const fileList=document.createElement('div');fileList.className='review-files';
  const imageGrid=document.createElement('div');imageGrid.className='review-images';
@@ -67,7 +80,7 @@ async function renderReview(){
   const remove=document.createElement('button');remove.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';remove.title='Delete '+(item.kind==='image'?'screenshot':'HTML file');remove.setAttribute('aria-label',remove.title);remove.className='review-remove icon-button';remove.addEventListener('click',async()=>{await reviewStore('readwrite',store=>store.delete(item.id));await renderReview();});row.appendChild(remove);
   (item.kind==='image'?imageGrid:fileList).appendChild(row);
  }
- document.getElementById('review-count').textContent=items.filter(i=>i.kind==='image').length+' screenshots · '+items.filter(i=>i.kind==='html').length+' HTML files saved locally';
+ document.getElementById('review-count').textContent=items.length+' / '+REVIEW_MAX_FILES+' files · '+items.filter(i=>i.kind==='image').length+' screenshots · '+items.filter(i=>i.kind==='html').length+' HTML files saved locally';
 }
 async function removeReviewItems(all){
  if(all)await reviewStore('readwrite',store=>store.clear());
@@ -75,7 +88,8 @@ async function removeReviewItems(all){
  await renderReview();
 }
 async function createReviewPackage(){
- const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.selected);
+ const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.selected&&(i.kind==='html'||i.kind==='image'));
+ if(items.length>REVIEW_MAX_FILES)throw new Error('Select no more than 20 files total (HTML + images).');
  if(!items.some(i=>i.kind==='html')||!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot and add/select its original HTML file.');
  const entries=[],names=new Set();
  for(const item of items){

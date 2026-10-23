@@ -180,3 +180,6 @@ Creative-type changes queue a fresh check after any running automatic check. Sta
 ### Local test 1.9.7
 The displayed size card and issue counts recalculate from selected type even for older cached reports. Manual Recheck explicitly passes the dropdown selection. Added UI regression for the legacy fixed 5 MB card, 4,440,822-byte SIP error, and switching back to MIP.
 
+
+### Version 2.1.1
+Hosted dashboard/container removed. The complete UI runs in the local extension popup. Review has a combined 20-file HTML/image limit with atomic checks and export/send guards. Orivelle positional schedules and original source fallback are included. ZIP update downloads still require installation-folder replacement and Reload.

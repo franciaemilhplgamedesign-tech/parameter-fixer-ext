@@ -46,5 +46,3 @@ async function checkLocalPreview(tabId,requestedType){
  try{return await task;}finally{mraidTasks.delete(tabId);}
 }
 
-importScripts('url-tools.js');
-importScripts('hosted-bridge.js');

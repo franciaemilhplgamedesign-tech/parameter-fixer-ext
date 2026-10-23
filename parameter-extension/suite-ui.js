@@ -99,4 +99,3 @@ document.getElementById('date-fix-files').addEventListener('change',async event=
  status.textContent=report.join('\n');if(entries.length){if(files.length===1)suiteDownload(new Blob([entries[0].text],{type:'text/html'}),entries[0].name);else suiteDownload(makeZip([...entries,{name:'report.txt',text:report.join('\n')}]),'parameter-fixed-creatives.zip');}event.target.value='';
 });
 
-document.getElementById('open-hosted-dashboard').addEventListener('click',async()=>{try{if(!currentTab?.id)throw new Error('Open a preview first.');const result=await chrome.runtime.sendMessage({type:'open-hosted-dashboard',tabId:currentTab.id});if(result?.error)throw new Error(result.error);}catch(error){document.getElementById('mraid-status').textContent=error.message;}});

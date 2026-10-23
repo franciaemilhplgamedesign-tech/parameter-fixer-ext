@@ -8,7 +8,18 @@ function inspectCreativeHtml(html) {
     const item=match[0],get=key=>{const m=item.match(new RegExp('["\']?'+key+'["\']?\\s*:\\s*(["\'])(.*?)\\1'));return m?.[2];};
     const start=get('startDate')||get('start'),end=get('endDate')||get('end');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(start||'')||!/^\d{4}-\d{2}-\d{2}$/.test(end||''))continue;
-    const label=get('text')||get('name')||get('label')||get('id')||'Holiday';
+    const label=get('text')||get('name')||get('promo')||get('label')||get('id')||'Holiday';
+    const key=[start,end,label].join('|');if(!seen.has(key)){seen.add(key);ranges.push({start,end,label});}
+  }
+  // Positional schedule rows: [start ISO date, end ISO date, promo label].
+  // Match literal values only; never evaluate a creative's JavaScript.
+  for(const match of inspectionSource.matchAll(/\[\s*(["'])(\d{4}-\d{2}-\d{2})\1\s*,\s*(["'])(\d{4}-\d{2}-\d{2})\3\s*,\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*,?\s*\]/g)){
+    const start=match[2],end=match[4];
+    const valid=value=>{const date=new Date(value+'T12:00:00Z');return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===value;};
+    if(!valid(start)||!valid(end)||start>end)continue;
+    let label;try{label=match[5][0]==='"'?JSON.parse(match[5]):match[5].slice(1,-1).replace(/\\(?:u[0-9a-f]{4}|x[0-9a-f]{2}|[\\'"nrtbfv])/gi,escape=>{
+      const value=escape.slice(1);return value[0]==='u'||value[0]==='x'?String.fromCharCode(parseInt(value.slice(1),16)):({'n':'\n','r':'\r','t':'\t','b':'\b','f':'\f','v':'\v'}[value]??value);
+    });}catch(_){continue;}
     const key=[start,end,label].join('|');if(!seen.has(key)){seen.add(key);ranges.push({start,end,label});}
   }
   ranges.sort((a,b)=>a.start.localeCompare(b.start));

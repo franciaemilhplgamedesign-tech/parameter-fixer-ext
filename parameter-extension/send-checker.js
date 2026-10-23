@@ -1,6 +1,7 @@
 // Runs in the requested ChatGPT tab. No credentials or third-party API are used.
 async function attachAndSendInChecker(files,prompt){
  try{
+ if(!Array.isArray(files)||files.length>20)throw new Error('Review is limited to 20 files total (HTML + images).');
  function progress(text){try{chrome.runtime.sendMessage({type:'review-progress',text}).catch(()=>{});}catch(_){} }
  progress('Waiting for the ChatGPT composer. Sign in if requested…');
  const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -63,7 +64,8 @@ async function attachAndSendInChecker(files,prompt){
  }catch(error){return {sent:false,error:error.message};}
 }
 async function sendSelectedReview(){
- const items=(await reviewStore('readonly',store=>store.getAll())).filter(item=>item.selected);
+ const items=(await reviewStore('readonly',store=>store.getAll())).filter(item=>item.selected&&(item.kind==='html'||item.kind==='image'));
+ if(items.length>20)throw new Error('Select no more than 20 files total (HTML + images).');
  if(!items.some(i=>i.kind==='html')||!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot and its collected HTML.');
  const files=[];
  for(const item of items){

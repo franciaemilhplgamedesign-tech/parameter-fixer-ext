@@ -15,6 +15,7 @@ document.getElementById('open-checker').addEventListener('click',async()=>{const
   if(!id?.startsWith('pending-send:'))throw new Error('Invalid transfer job.');
   await transferState('Reading selected review files…');
   const job=await runnerJob(id);if(!job)throw new Error('Review files were not found. Select your files and start a new transfer.');
+  if(!Array.isArray(job.files)||job.files.length>20)throw new Error('Review is limited to 20 files total (HTML + images).');
   await transferState('Opening the ecomm checker…');
   const existing=(await chrome.tabs.query({url:'https://chatgpt.com/*'})).find(tab=>{try{return new URL(tab.url).pathname===new URL(job.url).pathname;}catch(_){return false;}});
   const tab=existing?await chrome.tabs.update(existing.id,{active:true}):await chrome.tabs.create({url:job.url,active:true});checkerTabId=tab.id;document.getElementById('open-checker').hidden=false;
