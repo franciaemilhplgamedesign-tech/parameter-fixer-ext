@@ -189,3 +189,6 @@ Review transfer prepares attachments and the prompt for manual sending. Successf
 
 ### Version 2.2.0 — automatic Windows updates
 A one-time native helper setup binds your existing folder and extension ID. Future startup/six-hour updates replace verified release files with backups/rollback and reload after tools close. Install latest update automatically is available in Updates; ZIP download remains a manual fallback. See the Windows updater README and release notes for setup, integrity checks, requirements and unregistering.
+
+### Version 2.3.0 — outer URL parameters
+One date/language pair is appended to the outer AppLovin preview URL. Fixer exports inherit accessible parent parameters before native readers run. Localhost/direct HTML remain supported; cross-origin/sandboxed hosts need explicit forwarding. See v2.3.0 release notes for examples and tests.

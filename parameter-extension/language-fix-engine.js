@@ -12,7 +12,8 @@ function fixLanguageHtml(html){
  if(!count)return {html,changed:false,message:'No supported locale formatter or native language reader found. Translations cannot be invented automatically.'};
  const helper='<script id="ec-language-preview-v1">('+function(){
   let search=window.location.search;try{if(!search&&window.parent!==window)search=window.parent.location.search;}catch(_){}
-  const raw=new URLSearchParams(search).get('language');
+  let raw=typeof window.__ecPreviewParameter==='function'?window.__ecPreviewParameter('language'):new URLSearchParams(search).get('language');
+  try{if(typeof window.__ecPreviewParameter!=='function'&&window.parent!==window&&typeof window.parent.__ecPreviewParameter==='function')raw=window.parent.__ecPreviewParameter('language');}catch(_){}
   window.__ecPreviewLocale=function(fallback){
    if(!raw)return fallback;const locale=raw.toLowerCase()==='br'?'pt-BR':raw;
    try{if(!/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(locale))return fallback;new Intl.DateTimeFormat(locale).format(new Date());return locale;}catch(_){return fallback;}

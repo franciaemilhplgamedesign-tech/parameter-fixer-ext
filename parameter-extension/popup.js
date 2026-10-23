@@ -26,8 +26,9 @@ connectRangeNavigation(holidaySelect,document.getElementById('holiday-prev'),doc
     if(!currentTab?.url)throw new Error('Open a supported preview tab first.');
     const saved=await chrome.storage.local.get(['previewDate','autoRefresh']);
     const url=new URL(currentTab.url), first=[...url.searchParams].find(([k])=>/^h(?:[1-9]\d*)?$/.test(k));
-    const existing=first?new URLSearchParams(first[1].split('?')[1]?.split('#')[0]||'').get('date'):url.searchParams.get('date');
-    const existingLanguage=(first?new URLSearchParams(first[1].split('?')[1]?.split('#')[0]||'').get('language'):url.searchParams.get('language'))||'';
+    const iterationParams=new URLSearchParams(first?.[1].split('?')[1]?.split('#')[0]||'');
+    const existing=url.searchParams.has('date')?url.searchParams.getAll('date').at(-1):iterationParams.get('date');
+    const existingLanguage=(url.searchParams.has('language')?url.searchParams.getAll('language').at(-1):iterationParams.get('language'))||'';
     languageInput.value=existingLanguage && !languages[existingLanguage]?'custom':existingLanguage;
     customLanguage.value=languageInput.value==='custom'?existingLanguage:'';showCustom();
     autoRefresh.checked=!!saved.autoRefresh;buttons[0].hidden=autoRefresh.checked;

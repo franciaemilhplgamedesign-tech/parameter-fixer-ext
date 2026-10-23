@@ -23,7 +23,7 @@ function fixSipHtml(html) {
   if(endcards){
     if(!/<head\b[^>]*>/i.test(html))throw new Error('Missing HTML head. No file was changed.');
     const runtime = '('+function installMipDatePreview(patchHtml) {
-      var value=new URLSearchParams(window.location.search).get('date'),preview=null;
+      var value=typeof window.__ecPreviewParameter==='function'?window.__ecPreviewParameter('date'):new URLSearchParams(window.location.search).get('date'),preview=null;
       if(value && /^\d{4}-\d{2}-\d{2}$/.test(value)){
         var parts=value.split('-').map(Number),candidate=new Date(0);
         candidate.setFullYear(parts[0],parts[1]-1,parts[2]);candidate.setHours(12,0,0,0);
@@ -64,7 +64,8 @@ function fixSipHtml(html) {
 (function () {
   var search = window.location.search;
   try { if (!search && window.parent && window.parent !== window) search = window.parent.location.search; } catch (_) {}
-  var value = new URLSearchParams(search).get('date');
+  var value = typeof window.__ecPreviewParameter==='function'?window.__ecPreviewParameter('date'):new URLSearchParams(search).get('date');
+  try { if(typeof window.__ecPreviewParameter!=='function' && window.parent!==window && typeof window.parent.__ecPreviewParameter==='function') value=window.parent.__ecPreviewParameter('date'); } catch (_) {}
   var preview = null;
   if (value && /^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
     var parts = value.split('-').map(Number);

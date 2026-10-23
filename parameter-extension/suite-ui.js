@@ -88,6 +88,7 @@ function addDateFix(html,name){
  let patched=html;const messages=[];
  if(dateEnabled){const result=fixSipHtml(patched);patched=result.html;messages.push(result.message);}
  if(languageEnabled){const result=fixLanguageHtml(patched);patched=result.html;messages.push(result.message);}
+ const scope=patchPreviewUrlScope(patched,{date:dateEnabled,language:languageEnabled});patched=scope.html;messages.push(scope.message);
  return {name:name.replace(/\.html?$/i,'')+'_parameter_preview.html',text:patched,message:messages.join('\n')};
 }
 document.getElementById('date-fix-current').addEventListener('click',async()=>{

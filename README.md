@@ -10,6 +10,10 @@ After setup, startup/six-hour checks install future releases automatically when 
 
 New users can first Load unpacked from the extension ZIP, then set up the helper. Without the helper, replace files manually in the same folder and click Reload. Enable Allow access to file URLs for local HTML previews.
 
+## One outer date/language pair — v2.3.0
+
+AppLovin links now use `...Preview/?h=first.html&h2=second.html&date=2026-12-01&language=de`. The fixer embeds same-origin parent inheritance; the extension supplies the adapter early in accessible AppLovin/local frames. Cross-origin hosts must forward parameters themselves. Direct HTML and localhost retain `?date=...&language=...`. See the latest notes for scope and examples.
+
 ## Tools
 
 - Parameters: date/language testing across AppLovin iterations, local HTML and localhost, detected holiday ranges, Previous/Next and auto-refresh.
@@ -23,6 +27,6 @@ Static checks are review aids, not certification. Test fixed creatives in the ta
 
 Run scripts/build-release.ps1 on Windows to compile the helper and generate the extension ZIP, setup ZIP and SHA-256 assets. Upload to a draft GitHub release first; publish only when all assets exist. The native updater requires EC-FIX-IT-extension-vVERSION.zip plus .zip.sha256 for every future release. Checksum verification uses the trusted repository release; code-signing is not provided.
 
-[Latest release notes](RELEASE-NOTES-v2.2.1.md)
+[Latest release notes](RELEASE-NOTES-v2.3.0.md)
 
 Created By: Emil Son Francia | October 2026

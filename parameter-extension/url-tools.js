@@ -20,21 +20,23 @@ function updatePreviewUrl(input,date,language) {
   const isAppLovin=url.hostname==='playable.applovindemo.com' && /^\/Preview(?:\/|$)/i.test(url.pathname);
   if(isAppLovin){
     const entries=[...url.searchParams.entries()];let count=0;
-    const query=new URLSearchParams();
+    const query=new URLSearchParams(),effectiveLanguage=language===undefined?url.searchParams.get('language'):language;
     for(const [key,value] of entries){
-      if(/^h(?:[1-9]\d*)?$/.test(key) && value){query.append(key,updateCreativeReference(value,date,language));count++;}
+      if(key==='date'||key==='language')continue;
+      if(/^h(?:[1-9]\d*)?$/.test(key) && value){query.append(key,updateCreativeReference(value,'',language===undefined?undefined:''));count++;}
       else query.append(key,value);
     }
     if(!count)throw new Error('No HTML iteration entries found in this AppLovin URL.');
+    if(date)query.set('date',date);if(effectiveLanguage)query.set('language',effectiveLanguage);
     url.search=query.toString();
-    return {url:url.href,count,label:count+' AppLovin iteration'+(count===1?'':'s')};
+    return {url:url.href,count,label:count+' AppLovin iteration'+(count===1?'':'s')+' using one preview URL'};
   }
   const local=['localhost','127.0.0.1','[::1]'].includes(url.hostname)||url.hostname.endsWith('.localhost');
-  if(!['file:','http:','https:'].includes(url.protocol) || (!local && !/\.html?$/i.test(url.pathname))){
+  if(!['file:','http:','https:'].includes(url.protocol)){
     throw new Error('Open an AppLovin Preview URL or a direct HTML preview file first.');
   }
   url.searchParams.delete('date');if(date)url.searchParams.set('date',date);
   if(language!==undefined){url.searchParams.delete('language');if(language)url.searchParams.set('language',language);}
-  return {url:url.href,count:1,label:local?'Localhost preview':url.protocol==='file:'?'Local HTML file':'Direct HTML preview'};
+  return {url:url.href,count:1,label:local?'Localhost preview':url.protocol==='file:'?'Local HTML file':(/\.html?$/i.test(url.pathname)?'Direct HTML preview':'Hosted preview')};
 }
 if(typeof module!=='undefined')module.exports={validDate,updateCreativeReference,updatePreviewUrl};
