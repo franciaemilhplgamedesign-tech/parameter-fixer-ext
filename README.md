@@ -1,22 +1,28 @@
 # EC-FIX-IT extension
 
-Chrome and Microsoft Edge extension for SIP/MIP parameter testing, HTML fixes, automatic source checks, compression and screenshot review. The complete interface runs locally in the toolbar popup. The hosted dashboard has been removed.
+Local Chrome/Edge tools for SIP/MIP parameters, HTML fixes, source checks, compression and screenshot review. No hosted dashboard.
+
+## Automatic Windows updates — v2.2.0
+
+Download EC-FIX-IT-Windows-Updater.zip from the [latest release](https://github.com/franciaemilhplgamedesign-tech/parameter-fixer-ext/releases/latest). Extract it and run Install-Updater.cmd. Select the EXISTING unpacked EC-FIX-IT folder and paste its ID from your browser extensions page. Setup installs the latest release into that same folder. Click Reload once, then reopen EC-FIX-IT and confirm Windows updater connected.
+
+After setup, startup/six-hour checks install future releases automatically when EC-FIX-IT tools are closed, then reload. The Updates panel has an opt-out checkbox and an immediate install button. No manual ZIP extraction/reinstallation is needed for later updates. Existing extension ID and Review data are preserved. Windows 10/11, .NET Framework 4.5+ and Chrome/Chromium 116+ are required. See [setup, recovery and unregister instructions](windows-updater/README.md).
+
+New users can first Load unpacked from the extension ZIP, then set up the helper. Without the helper, replace files manually in the same folder and click Reload. Enable Allow access to file URLs for local HTML previews.
 
 ## Tools
 
-- Parameters: date/language testing for AppLovin iterations, local HTML and localhost; automatic holiday ranges, Previous/Next and auto-refresh.
-- Parameter Fixer: supported date/language patches for current or bulk HTML files.
-- Checker: MRAID/source checks, networking and WebGL safeguards, end-scene packaging, MIP 5 MB / SIP 3.4 MB limits, fixes and compression.
-- Review: screenshots and original HTML collection, maximum 20 files total across HTML and images, export and configured ecomm checker draft preparation.
+- Parameters: date/language testing across AppLovin iterations, local HTML and localhost, detected holiday ranges, Previous/Next and auto-refresh.
+- Parameter Fixer: supported date/language patches for current/bulk HTML.
+- Checker: MRAID/source/network/WebGL/end-scene checks, selected MIP 5 MB / SIP 3.4 MB caps, proposed fixes and compression.
+- Review: screenshots and original HTML, max 20 files total; export or upload with the review prompt for manual sending. Successful transfer closes its extra popup.
 
-Version 2.1.2 prepares the review draft without sending, closes the transfer popup after confirmed readiness, and avoids unrelated upload-busy indicators. It also includes Orivelle tuple-schedule detection (37 ranges in each of the ten supplied files), original source detection fallback, and the atomic combined Review cap. Static checks are review aids, not certification. Live ChatGPT transfer remains unverified.
+Static checks are review aids, not certification. Test fixed creatives in the target container. Live ChatGPT behavior depends on its current controls and needs browser validation.
 
-## Install / update
+## Releases
 
-Download the ZIP from the latest GitHub release. Extract to a permanent folder, enable Developer mode on the browser extensions page, choose Load unpacked and select the folder containing manifest.json. Enable Allow access to file URLs for local previews.
+Run scripts/build-release.ps1 on Windows to compile the helper and generate the extension ZIP, setup ZIP and SHA-256 assets. Upload to a draft GitHub release first; publish only when all assets exist. The native updater requires EC-FIX-IT-extension-vVERSION.zip plus .zip.sha256 for every future release. Checksum verification uses the trusted repository release; code-signing is not provided.
 
-For an existing installation, replace files in the same folder and click Reload. Do not uninstall to preserve Review storage. Close old detached/container windows and reopen from the toolbar icon.
-
-Current GitHub checks notify about updates; ZIP downloads do not install themselves. Unattended full-package updates require browser-managed distribution or a separately installed updater. No automatic file-replacement helper is included in v2.1.1.
+[Latest release notes](RELEASE-NOTES-v2.2.0.md)
 
 Created By: Emil Son Francia | October 2026

@@ -1,13 +1,15 @@
 importScripts('updates.js');
+importScripts('native-updates.js');
 importScripts('send-checker.js');
 importScripts('mraid-checks.js');
 async function scheduleUpdateChecks(){
  await chrome.alarms.create('github-update-check',{periodInMinutes:360});
  await checkExtensionUpdate();
+ await automaticNativeUpdate();
 }
 chrome.runtime.onInstalled.addListener(scheduleUpdateChecks);
 chrome.runtime.onStartup.addListener(scheduleUpdateChecks);
-chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='github-update-check')checkExtensionUpdate();});
+chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name==='github-update-check')checkExtensionUpdate().then(automaticNativeUpdate);if(alarm.name==='native-update-retry')automaticNativeUpdate();});
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
  if(sender.id===chrome.runtime.id && ['local-preview-viewed','run-mraid-check'].includes(message?.type)){
   const tabId=message.type==='local-preview-viewed'?sender.tab?.id:message.tabId;

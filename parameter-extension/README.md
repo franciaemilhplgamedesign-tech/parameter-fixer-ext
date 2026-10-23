@@ -186,3 +186,6 @@ Hosted dashboard/container removed. The complete UI runs in the local extension 
 
 ### Version 2.1.2
 Review transfer prepares attachments and the prompt for manual sending. Successful transfer closes its extra popup; errors stay open. Upload readiness ignores unrelated composer busy indicators. No automatic Send click.
+
+### Version 2.2.0 — automatic Windows updates
+A one-time native helper setup binds your existing folder and extension ID. Future startup/six-hour updates replace verified release files with backups/rollback and reload after tools close. Install latest update automatically is available in Updates; ZIP download remains a manual fallback. See the Windows updater README and release notes for setup, integrity checks, requirements and unregistering.
