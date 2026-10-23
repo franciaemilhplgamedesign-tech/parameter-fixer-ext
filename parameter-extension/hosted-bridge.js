@@ -46,12 +46,13 @@ async function hostedCommand(message,sender){
 chrome.runtime.onMessageExternal.addListener((message,sender,respond)=>{
  hostedCommand(message,sender).then(result=>respond({ok:true,...result})).catch(error=>respond({ok:false,error:error.message}));return true;
 });
-chrome.action.onClicked.addListener(tab=>{
- openHostedDashboard(tab).catch(async error=>{
-  await chrome.windows.create({url:chrome.runtime.getURL('popup.html')+(tab?.id?'?targetTab='+tab.id:''),type:'popup',width:860,height:920});
- });
-});
 chrome.tabs.onRemoved.addListener(async tabId=>{
  const saved=await chrome.storage.session.get(null),keys=Object.entries(saved).filter(([k,v])=>k.startsWith('hosted-session:')&&(v.dashboardTab===tabId||v.targetTab===tabId)).map(([k])=>k);
  if(keys.length)await chrome.storage.session.remove(keys);
+});
+
+chrome.runtime.onMessage.addListener((message,sender,respond)=>{
+ if(message?.type!=='open-hosted-dashboard')return;
+ if(sender.id!==chrome.runtime.id||!sender.url?.startsWith(chrome.runtime.getURL('popup.html'))||!Number.isInteger(message.tabId)){respond({error:'Untrusted dashboard request.'});return;}
+ chrome.tabs.get(message.tabId).then(openHostedDashboard).then(()=>respond({ok:true})).catch(error=>respond({error:error.message}));return true;
 });

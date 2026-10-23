@@ -3,10 +3,10 @@ const byId=id=>document.getElementById(id),hash=new URLSearchParams(location.has
 const extension=hash.get('extension'),session=hash.get('session');let connected=false,local=false,checkSequence=0;
 function enable(value){connected=value;document.querySelectorAll('[data-connected]').forEach(b=>b.disabled=!value);}
 async function command(name,values={}){
- if(!/^[a-p]{32}$/.test(extension||'')||!/^[-a-f0-9]{36}$/.test(session||''))throw new Error('Open EC-FIX-IT using the extension icon on a preview tab to connect this dashboard.');
- if(!globalThis.chrome?.runtime?.sendMessage)throw new Error('Install/update EC-FIX-IT v2.0.0 or later, then open it from your preview.');
+ if(!/^[a-p]{32}$/.test(extension||'')||!/^[-a-f0-9]{36}$/.test(session||''))throw new Error('Open the extension on your preview, then choose Open hosted dashboard to connect.');
+ if(!globalThis.chrome?.runtime?.sendMessage)throw new Error('Install/update EC-FIX-IT v2.0.0 or later, then choose Open hosted dashboard inside its popup.');
  const result=await chrome.runtime.sendMessage(extension,{channel:'ec-fix-it-v1',session,command:name,...values});
- if(!result?.ok)throw new Error(result?.error||'Extension did not respond. Reload it and reopen from your preview.');return result;
+ if(!result?.ok)throw new Error(result?.error||'Extension did not respond. Reload it and reopen using Open hosted dashboard in the extension.');return result;
 }
 function panel(name){document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==name);document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===name)));}
 async function check(){const sequence=++checkSequence;byId('check-status').textContent='Checking original source…';try{

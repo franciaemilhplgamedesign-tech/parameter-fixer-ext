@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EC-FIX-IT",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Test SIP/MIP date and language parameters, check MRAID and size limits, fix HTML, compress creatives and collect reviews.",
   "permissions": [
     "activeTab",
@@ -51,7 +51,8 @@
       "32": "ec-logo-w.png",
       "48": "ec-logo-w.png",
       "128": "ec-logo-w.png"
-    }
+    },
+    "default_popup": "popup.html"
   },
   "externally_connectable": {
     "matches": [
