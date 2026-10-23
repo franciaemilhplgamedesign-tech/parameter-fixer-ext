@@ -10,9 +10,10 @@ public class UpdaterTests {
  static void Reject(Action fn,string text){try{fn();throw new Exception("Expected rejection: "+text);}catch(Exception e){Check(e.Message.Contains(text),e.Message);}}
  static byte[] Archive(Dictionary<string,string> files){using(var data=new MemoryStream()){using(var zip=new ZipArchive(data,ZipArchiveMode.Create,true)){foreach(var f in files){var e=zip.CreateEntry(f.Key);using(var w=new StreamWriter(e.Open(),new UTF8Encoding(false)))w.Write(f.Value);}}return data.ToArray();}}
  public static int Main(string[] args){try{
+ if(args.Length>2)Console.WriteLine("Actual release ZIP passed: "+ECFixItUpdater.Unpack(File.ReadAllBytes(args[1]),args[2]).Count+" files");
  string root=Path.Combine(Path.GetFullPath(args[0]),Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
  var files=new Dictionary<string,string>{{"parameter-extension/manifest.json","{\"name\":\"EC-FIX-IT\",\"manifest_version\":3,\"version\":\"2.2.0\"}"},{"parameter-extension/popup.html","new popup"},{"parameter-extension/background.js","new background"},{"parameter-extension/updates.js","updates"},{"parameter-extension/native-updates.js","native"}};
- byte[] package=Archive(files);var unpacked=ECFixItUpdater.Unpack(package,"2.2.0");Check(unpacked.Count==5,"valid ZIP");
+ byte[] package=Archive(files);var unpacked=ECFixItUpdater.Unpack(package,"2.2.0");Check(unpacked.Count==5,"valid ZIP");var windowsFiles=files.ToDictionary(k=>k.Key.Replace('/','\\'),v=>v.Value);Check(ECFixItUpdater.Unpack(Archive(windowsFiles),"2.2.0").Count==5,"Windows ZIP separators");
  using(var sha=SHA256.Create()){string hash=BitConverter.ToString(sha.ComputeHash(package)).Replace("-","").ToLowerInvariant();ECFixItUpdater.VerifyHash(package,hash+"  package.zip");}
  Reject(()=>ECFixItUpdater.VerifyHash(package,new string('0',64)),"checksum");
  foreach(string path in new[]{"parameter-extension/../outside.js","parameter-extension/C:/evil.js","parameter-extension/CON.txt","wrong-root/evil.js","parameter-extension/tool.exe","parameter-extension/.ecfixit-install-id"}){var bad=new Dictionary<string,string>(files);bad[path]="bad";try{ECFixItUpdater.Unpack(Archive(bad),"2.2.0");throw new Exception("Unsafe archive accepted: "+path);}catch(Exception e){if(e.Message.StartsWith("Unsafe archive accepted"))throw;}}

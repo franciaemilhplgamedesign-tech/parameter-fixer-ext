@@ -11,7 +11,7 @@ using System.Threading;
 using System.Web.Script.Serialization;
 
 public class ECFixItUpdater {
- public const string HostVersion="1.0.0";
+ public const string HostVersion="1.0.1";
  const string Repo="franciaemilhplgamedesign-tech/parameter-fixer-ext";
  const int MaxArchive=25*1024*1024,MaxExpanded=80*1024*1024;
  static JavaScriptSerializer Json=new JavaScriptSerializer { MaxJsonLength=2*1024*1024 };
@@ -58,8 +58,8 @@ public class ECFixItUpdater {
  public static Dictionary<string,byte[]> Unpack(byte[] bytes,string version){
   if(bytes.Length>MaxArchive)throw new Exception("Update archive is too large.");var files=new Dictionary<string,byte[]>(StringComparer.OrdinalIgnoreCase);long expanded=0;
   using(var zip=new ZipArchive(new MemoryStream(bytes),ZipArchiveMode.Read))foreach(var entry in zip.Entries){
-   const string prefix="parameter-extension/";if(!entry.FullName.StartsWith(prefix,StringComparison.Ordinal))throw new Exception("Unexpected archive root.");if(entry.FullName.EndsWith("/"))continue;
-   string relative=entry.FullName.Substring(prefix.Length);Under(Path.GetTempPath(),relative);
+   string entryPath=entry.FullName.Replace('\\','/');const string prefix="parameter-extension/";if(!entryPath.StartsWith(prefix,StringComparison.Ordinal))throw new Exception("Unexpected archive root.");if(entryPath.EndsWith("/"))continue;
+   string relative=entryPath.Substring(prefix.Length);Under(Path.GetTempPath(),relative);
    if(relative.StartsWith(".")||Regex.IsMatch(relative,@"\.(exe|dll|ps1|cmd|bat|com|msi)$",RegexOptions.IgnoreCase))throw new Exception("Unexpected executable or configuration in extension archive.");
    if(files.ContainsKey(relative)||files.Count>=500)throw new Exception("Duplicate or excessive archive entries.");expanded+=entry.Length;if(entry.Length<0||expanded>MaxExpanded)throw new Exception("Expanded update is too large.");
    using(var input=entry.Open())using(var buffer=new MemoryStream()){byte[] chunk=new byte[8192];int n;while((n=input.Read(chunk,0,chunk.Length))>0){if(buffer.Length+n>entry.Length||buffer.Length+n>MaxExpanded)throw new Exception("Invalid archive entry size.");buffer.Write(chunk,0,n);}if(buffer.Length!=entry.Length)throw new Exception("Incomplete archive entry.");files.Add(relative,buffer.ToArray());}

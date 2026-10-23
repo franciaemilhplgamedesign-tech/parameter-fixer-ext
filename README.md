@@ -2,7 +2,7 @@
 
 Local Chrome/Edge tools for SIP/MIP parameters, HTML fixes, source checks, compression and screenshot review. No hosted dashboard.
 
-## Automatic Windows updates — v2.2.0
+## Automatic Windows updates — v2.2.1
 
 Download EC-FIX-IT-Windows-Updater.zip from the [latest release](https://github.com/franciaemilhplgamedesign-tech/parameter-fixer-ext/releases/latest). Extract it and run Install-Updater.cmd. Select the EXISTING unpacked EC-FIX-IT folder and paste its ID from your browser extensions page. Setup installs the latest release into that same folder. Click Reload once, then reopen EC-FIX-IT and confirm Windows updater connected.
 
@@ -23,6 +23,6 @@ Static checks are review aids, not certification. Test fixed creatives in the ta
 
 Run scripts/build-release.ps1 on Windows to compile the helper and generate the extension ZIP, setup ZIP and SHA-256 assets. Upload to a draft GitHub release first; publish only when all assets exist. The native updater requires EC-FIX-IT-extension-vVERSION.zip plus .zip.sha256 for every future release. Checksum verification uses the trusted repository release; code-signing is not provided.
 
-[Latest release notes](RELEASE-NOTES-v2.2.0.md)
+[Latest release notes](RELEASE-NOTES-v2.2.1.md)
 
 Created By: Emil Son Francia | October 2026
