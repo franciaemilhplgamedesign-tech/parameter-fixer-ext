@@ -1,0 +1,54 @@
+function embeddedImageIsAnimated(bytes,type){
+ const text=(start,length)=>String.fromCharCode(...bytes.subarray(start,start+length));
+ if(type==='image/gif')return true;
+ if(type==='image/webp')for(let at=12;at+8<=bytes.length;){const name=text(at,4),size=new DataView(bytes.buffer,bytes.byteOffset+at+4,4).getUint32(0,true);if(name==='ANIM'||name==='ANMF')return true;at+=8+size+(size%2);}
+ if(type==='image/png')for(let at=8;at+12<=bytes.length;){const size=new DataView(bytes.buffer,bytes.byteOffset+at,4).getUint32(0,false);if(text(at+4,4)==='acTL')return true;at+=12+size;}
+ return false;
+}
+async function optimizeEmbeddedImages(html,quality,maxEdge,progress=()=>{}){
+ const urls=[...new Set([...html.matchAll(/data:image\/(?:png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}/gi)].map(m=>m[0]))];
+ let optimized=0,skipped=0,saved=0;
+ for(let index=0;index<urls.length;index++){
+  const url=urls[index];progress('Optimizing embedded image '+(index+1)+' / '+urls.length+'…');
+  try{
+   const type=url.slice(5,url.indexOf(';')).toLowerCase(),raw=atob(url.slice(url.indexOf(',')+1)),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+   if(embeddedImageIsAnimated(bytes,type)){skipped++;continue;}
+   const bitmap=await createImageBitmap(new Blob([bytes],{type}));
+   const ratio=maxEdge?Math.min(1,maxEdge/Math.max(bitmap.width,bitmap.height)):1;
+   const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
+   canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+   const next=canvas.toDataURL('image/webp',quality);
+   if(next.startsWith('data:image/webp;base64,')&&next.length<url.length){const occurrences=html.split(url).length-1;html=html.split(url).join(next);saved+=(url.length-next.length)*occurrences;optimized++;}else skipped++;
+  }catch(_){skipped++;}
+ }
+ return {html,optimized,skipped,saved};
+}
+async function compressCreativeHtml(html,options={},progress=()=>{}){
+ const beforeBytes=new TextEncoder().encode(html).length;let candidate=html,images={optimized:0,skipped:0,saved:0};
+ if(options.images){images=await optimizeEmbeddedImages(candidate,options.quality??.82,options.maxEdge||0,progress);candidate=images.html;}
+ progress('Minifying markup and inline JavaScript…');
+ candidate=await HTMLMinifier.minify(candidate,{
+  collapseWhitespace:false,removeComments:true,removeOptionalTags:false,removeAttributeQuotes:false,
+  removeEmptyAttributes:false,minifyCSS:false,sortAttributes:false,sortClassName:false,
+  minifyJS:{mangle:false,compress:false,format:{comments:'some'}}
+ });
+ const candidateBytes=new TextEncoder().encode(candidate).length;
+ const output=candidateBytes<beforeBytes?candidate:html;
+ return {html:output,beforeBytes,afterBytes:Math.min(candidateBytes,beforeBytes),savedBytes:Math.max(0,beforeBytes-candidateBytes),images};
+}
+if(typeof module!=='undefined')module.exports={compressCreativeHtml,embeddedImageIsAnimated};
+if(typeof document!=='undefined'){
+ document.getElementById('compress-images').addEventListener('change',event=>{document.getElementById('compress-image-options').hidden=!event.target.checked;});
+ document.getElementById('compress-current').addEventListener('click',async()=>{
+  const button=document.getElementById('compress-current'),status=document.getElementById('compress-status'),download=document.getElementById('compress-download');
+  button.disabled=true;download.hidden=true;const oldUrl=download.dataset.objectUrl;if(oldUrl)URL.revokeObjectURL(oldUrl);
+  try{
+   const source=await readSuiteSource(),mode=document.getElementById('creative-type').value;
+   const result=await compressCreativeHtml(source.html,{images:document.getElementById('compress-images').checked,quality:Number(document.getElementById('compress-quality').value)/100,maxEdge:Number(document.getElementById('compress-edge').value)},text=>{status.textContent=text;});
+   const report=checkMraidHtml(result.html,source.url,mode),percent=result.beforeBytes?(result.savedBytes/result.beforeBytes*100).toFixed(1):'0';
+   status.textContent=result.beforeBytes.toLocaleString()+' → '+result.afterBytes.toLocaleString()+' bytes ('+percent+'% smaller).\n'+(report.bytes<=report.profile.limitBytes?'Within ':'Still exceeds ')+report.profile.label+' limit.\n'+result.images.optimized+' images optimized; '+result.images.skipped+' skipped. Videos, audio, fonts and encoded end scenes were not transcoded.\nOutput check: '+report.errors+' errors · '+report.warnings+' warnings. Test playback, interactions and appearance before upload.';
+   const url=URL.createObjectURL(new Blob([result.html],{type:'text/html'}));download.href=url;download.dataset.objectUrl=url;download.download=source.name.replace(/\.html?$/i,'')+'_compressed.html';download.hidden=false;
+   download.textContent=report.bytes<=report.profile.limitBytes?'Download compressed copy':'Download copy — still over limit';
+  }catch(error){status.textContent='Compression stopped: '+error.message+'. The original file is unchanged.';}finally{button.disabled=false;}
+ });
+}

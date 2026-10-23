@@ -35,6 +35,7 @@ connectRangeNavigation(holidaySelect,document.getElementById('holiday-prev'),doc
     dateInput.value=validDate(existing||'')?existing:(saved.previewDate||[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-'));
     statusEl.textContent=updatePreviewUrl(currentTab.url,'').label+' detected.';
     ready=true;
+    window.dispatchEvent(new Event('preview-target-ready'));
     await scanHolidays();
   }catch(error){statusEl.textContent=error.message;buttons.forEach(b=>b.disabled=true);}
 })();

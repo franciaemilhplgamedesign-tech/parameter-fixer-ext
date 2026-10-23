@@ -38,10 +38,11 @@ if(typeof document!=='undefined'){
    const canvas=document.createElement('canvas');canvas.width=g.width;canvas.height=g.height;
    const ctx=canvas.getContext('2d');ctx.fillStyle='#000';ctx.fillRect(0,0,g.width,g.height);
    ctx.drawImage(image,g.crop.x,g.crop.y,g.crop.width,g.crop.height,g.dest.x,g.dest.y,g.dest.width,g.dest.height);
-   const png=canvas.toDataURL('image/png');
-   const preview=document.getElementById('shot-preview');preview.src=png;preview.hidden=false;
-   const link=document.getElementById('shot-download');link.href=png;link.download='creative-'+(document.getElementById('date').value||'real-date')+'-'+g.width+'x'+g.height+'-'+Date.now()+'.png';link.hidden=false;
-   output.textContent='Captured '+g.width+' × '+g.height+' px. Click Download PNG to save.';
+   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+   if(!blob)throw new Error('Could not encode the screenshot.');
+   const name='creative-'+(document.getElementById('date').value||'real-date')+'-'+g.width+'x'+g.height+'-'+Date.now()+'.png';
+   await saveScreenshot(blob,name,{sourceUrl:tab.url,date:document.getElementById('date').value,language:selectedLanguage(),width:g.width,height:g.height});
+   output.textContent='Captured '+g.width+' × '+g.height+' px. Added to the saved review gallery.';
   }catch(error){output.textContent=error.message+' If browser access was lost, reopen the extension from the preview tab. Local captures require Allow access to file URLs.';}finally{button.disabled=false;}
  });
 }

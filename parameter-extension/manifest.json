@@ -1,10 +1,57 @@
 {
   "manifest_version": 3,
-  "name": "Parameter Checker",
-  "version": "1.7.1",
-  "description": "Set one preview date across AppLovin iterations or local SIP/MIP HTML files.",
-  "permissions": ["activeTab", "storage", "scripting", "alarms"],
-  "host_permissions": ["https://playable.applovindemo.com/*", "https://raw.githubusercontent.com/franciaemilhplgamedesign-tech/parameter-fixer-ext/*"],
-  "background": {"service_worker": "background.js"},
-  "action": {"default_popup": "popup.html", "default_title": "Parameter Checker"}
+  "name": "EC-FIX-IT",
+  "version": "1.9.7",
+  "description": "Test SIP/MIP date and language parameters, check MRAID and size limits, fix HTML, compress creatives and collect reviews.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "alarms",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "file:///*",
+    "http://localhost/*",
+    "https://localhost/*",
+    "http://127.0.0.1/*",
+    "https://127.0.0.1/*",
+    "https://chatgpt.com/*",
+    "https://playable.applovindemo.com/*",
+    "https://raw.githubusercontent.com/franciaemilhplgamedesign-tech/parameter-fixer-ext/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "file:///*",
+        "http://localhost/*",
+        "https://localhost/*",
+        "http://127.0.0.1/*",
+        "https://127.0.0.1/*"
+      ],
+      "js": [
+        "auto-mraid.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "ec-logo-w.png",
+    "32": "ec-logo-w.png",
+    "48": "ec-logo-w.png",
+    "128": "ec-logo-w.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "EC-FIX-IT",
+    "default_icon": {
+      "16": "ec-logo-w.png",
+      "32": "ec-logo-w.png",
+      "48": "ec-logo-w.png",
+      "128": "ec-logo-w.png"
+    }
+  }
 }
