@@ -7,9 +7,9 @@ Chrome and Microsoft Edge extension for SIP/MIP parameter testing, HTML fixes, a
 - Parameters: date/language testing for AppLovin iterations, local HTML and localhost; automatic holiday ranges, Previous/Next and auto-refresh.
 - Parameter Fixer: supported date/language patches for current or bulk HTML files.
 - Checker: MRAID/source checks, networking and WebGL safeguards, end-scene packaging, MIP 5 MB / SIP 3.4 MB limits, fixes and compression.
-- Review: screenshots and original HTML collection, maximum 20 files total across HTML and images, export and configured ecomm checker transfer.
+- Review: screenshots and original HTML collection, maximum 20 files total across HTML and images, export and configured ecomm checker draft preparation.
 
-Version 2.1.1 includes Orivelle tuple-schedule detection (37 ranges in each of the ten supplied files), original source detection fallback, and the atomic combined Review cap. Static checks are review aids, not certification. Live ChatGPT transfer remains unverified.
+Version 2.1.2 prepares the review draft without sending, closes the transfer popup after confirmed readiness, and avoids unrelated upload-busy indicators. It also includes Orivelle tuple-schedule detection (37 ranges in each of the ten supplied files), original source detection fallback, and the atomic combined Review cap. Static checks are review aids, not certification. Live ChatGPT transfer remains unverified.
 
 ## Install / update
 

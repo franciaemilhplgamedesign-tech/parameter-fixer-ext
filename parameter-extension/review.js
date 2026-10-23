@@ -121,7 +121,7 @@ async function exportReview(openChecker){
 document.getElementById('review-export').addEventListener('click',()=>exportReview(false));
 document.getElementById('review-checker').addEventListener('click',async()=>{
  const button=document.getElementById('review-checker');button.disabled=true;
- try{reviewStatus.textContent='Starting review transfer…';await sendSelectedReview();}
+ try{reviewStatus.textContent='Attaching files and preparing the review draft…';await sendSelectedReview();}
  catch(error){reviewStatus.textContent=error.message;}finally{button.disabled=false;}
 });
 renderReview().catch(error=>{reviewStatus.textContent='Could not open local gallery: '+error.message;});

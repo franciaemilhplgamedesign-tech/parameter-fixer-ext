@@ -1,5 +1,5 @@
 // Runs in the requested ChatGPT tab. No credentials or third-party API are used.
-async function attachAndSendInChecker(files,prompt){
+async function attachReviewInChecker(files,prompt){
  try{
  if(!Array.isArray(files)||files.length>20)throw new Error('Review is limited to 20 files total (HTML + images).');
  function progress(text){try{chrome.runtime.sendMessage({type:'review-progress',text}).catch(()=>{});}catch(_){} }
@@ -38,10 +38,9 @@ async function attachAndSendInChecker(files,prompt){
   if(file.type.startsWith('image/'))return [...root.querySelectorAll('img')].filter(img=>!beforeImages.has(img.src)&&img.complete&&img.naturalWidth>0).length>=files.filter(f=>f.type.startsWith('image/')).length;
   return false;
  }
- // Never submit until every selected filename is represented in the composer.
- try{await waitFor(()=>files.every(attachmentSeen),90000);}catch(_){throw new Error('Could not verify every attachment in the checker. Files may be staged, but no message was sent. Do not retry until you clear the staged attachments.');}
- progress('Attachments found. Waiting for uploads to finish…');
- await waitFor(()=>!region()?.querySelector('[role="progressbar"],[aria-busy="true"]'),90000);
+ // Verify files are staged, then prepare a draft for the user to send.
+ try{await waitFor(()=>files.every(attachmentSeen),90000,'selected attachments');}catch(_){throw new Error('Could not verify every attachment. Inspect the checker draft before retrying to avoid duplicates.');}
+ progress('Attachments found. Adding the review prompt…');
  if(composer.tagName==='TEXTAREA'){
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(composer,prompt);
   composer.dispatchEvent(new Event('input',{bubbles:true}));
@@ -50,18 +49,28 @@ async function attachAndSendInChecker(files,prompt){
   composer.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:prompt}));
  }
  if((composer.innerText||composer.value||'').trim()!==prompt)throw new Error('Could not set the review prompt. No message was sent.');
- const send=await waitFor(()=>{
-  const button=document.querySelector('[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="Send message"]');
-  return button&&!button.disabled&&button.getAttribute('aria-disabled')!=='true'?button:null;
- },90000);
- progress('Uploads ready. Preparing to send the review prompt…');
- await sleep(1500);
- if(!files.every(attachmentSeen)||region()?.querySelector('[role="progressbar"],[aria-busy="true"]')||send.disabled)throw new Error('Attachments are still changing or uploading. No message was sent.');
- send.click();
- // Confirm the composer was cleared instead of claiming a successful send early.
- try{await waitFor(()=>!(composer.innerText||composer.value||'').trim(),15000);}catch(_){throw new Error('Send was clicked but submission could not be confirmed. Check the checker conversation before retrying.');}
- return {sent:true,count:files.length};
- }catch(error){return {sent:false,error:error.message};}
+ function attachmentUploading(){
+  const root=region();if(!root)return true;
+  // Composer-wide aria-busy/progress markers also describe unrelated UI work.
+  // Only attachment-specific indicators should block upload completion.
+  return !!root.querySelector('[data-testid*="attachment"] [role="progressbar"],[data-testid*="file"] [role="progressbar"],[data-file-id] [role="progressbar"],[data-testid*="attachment"][aria-busy="true"],[data-testid*="file"][aria-busy="true"],[data-file-id][aria-busy="true"],[aria-label*="Uploading" i],[aria-label*="Upload in progress" i]');
+ }
+ function enabledSend(){
+  const button=region()?.querySelector('[data-testid="send-button"],button[type="submit"],button[aria-label="Send prompt"],button[aria-label="Send message"]')||document.querySelector('[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="Send message"]');
+  return button&&!button.disabled&&button.getAttribute('aria-disabled')!=='true';
+ }
+ progress('Review prompt added. Confirming attachment readiness…');
+ let stableSince=null;
+ await waitFor(()=>{
+  const ready=files.every(attachmentSeen)&&!attachmentUploading()&&enabledSend();
+  if(!ready){stableSince=null;return false;}
+  if(stableSince===null)stableSince=Date.now();
+  return Date.now()-stableSince>=1200;
+ },90000,'uploaded attachments and enabled Send button');
+ if((composer.innerText||composer.value||'').trim()!==prompt)throw new Error('The draft changed during upload. Check it manually; no message was sent.');
+ progress('Files ready. Review draft prepared—click Send in ChatGPT.');
+ return {ready:true,sent:false,count:files.length};
+ }catch(error){return {ready:false,sent:false,error:error.message};}
 }
 async function sendSelectedReview(){
  const items=(await reviewStore('readonly',store=>store.getAll())).filter(item=>item.selected&&(item.kind==='html'||item.kind==='image'));

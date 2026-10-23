@@ -10,7 +10,7 @@ async function runnerJob(id,remove=false){
 }
 document.getElementById('open-checker').addEventListener('click',async()=>{const tab=await chrome.tabs.update(checkerTabId,{active:true});await chrome.windows.update(tab.windowId,{focused:true});});
 (async()=>{
- const id=new URLSearchParams(location.search).get('job');
+ const id=new URLSearchParams(location.search).get('job');let draftReady=false;
  try{
   if(!id?.startsWith('pending-send:'))throw new Error('Invalid transfer job.');
   await transferState('Reading selected review files…');
@@ -22,10 +22,12 @@ document.getElementById('open-checker').addEventListener('click',async()=>{const
   const deadline=Date.now()+60000;
   while((await chrome.tabs.get(tab.id)).status!=='complete'){if(Date.now()>deadline)throw new Error('ChatGPT page did not finish loading within 60 seconds. No message was sent.');await new Promise(resolve=>setTimeout(resolve,500));}
   await transferState('ChatGPT loaded. Locating composer and upload controls…');
-  const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('Transfer timed out. Check the ChatGPT tab before retrying; the current submission state is unknown.')),240000));
-  const result=await Promise.race([chrome.scripting.executeScript({target:{tabId:tab.id},func:attachAndSendInChecker,args:[job.files,job.prompt]}),timeout]);
-  if(!result?.[0]?.result?.sent)throw new Error(result?.[0]?.result?.error||'The page did not confirm submission. Check the conversation before retrying.');
-  await transferState('Sent '+result[0].result.count+' files with:\n'+job.prompt);
+  let timeoutId;const timeout=new Promise((_,reject)=>{timeoutId=setTimeout(()=>reject(new Error('Transfer timed out. Inspect the checker draft before retrying; nothing was sent automatically.')),240000);});
+  let result;try{result=await Promise.race([chrome.scripting.executeScript({target:{tabId:tab.id},func:attachReviewInChecker,args:[job.files,job.prompt]}),timeout]);}finally{clearTimeout(timeoutId);}
+  if(!result?.[0]?.result?.ready)throw new Error(result?.[0]?.result?.error||'Attachment readiness was not confirmed. Inspect the draft before retrying.');
+  await transferState('Ready: '+result[0].result.count+' files attached and review prompt added. Click Send in the ecomm checker. Nothing was sent automatically.');
+  try{await chrome.tabs.update(tab.id,{active:true});await chrome.windows.update(tab.windowId,{focused:true});}catch(_){}
+  draftReady=true;
  }catch(error){await transferState('Transfer stopped: '+error.message+'\nIf ChatGPT access is denied, reload the extension and allow access to chatgpt.com.');}
- finally{if(id)await runnerJob(id,true).catch(()=>{});}
+ finally{if(id)await runnerJob(id,true).catch(()=>{});if(draftReady)window.close();}
 })();
