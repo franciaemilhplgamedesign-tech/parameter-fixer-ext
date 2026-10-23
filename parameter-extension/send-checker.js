@@ -76,6 +76,7 @@ async function sendSelectedReview(){
  const items=(await reviewStore('readonly',store=>store.getAll())).filter(item=>item.selected&&(item.kind==='html'||item.kind==='image'));
  if(items.length>20)throw new Error('Select no more than 20 files total (HTML + images).');
  if(!items.some(i=>i.kind==='html')||!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot and its collected HTML.');
+ const prompt=getReviewPrompt();
  const files=[];
  for(const item of items){
   const bytes=new Uint8Array(await item.blob.arrayBuffer());let raw='';
@@ -84,7 +85,7 @@ async function sendSelectedReview(){
  }
  const jobId='pending-send:'+crypto.randomUUID();
  // Save before opening another tab, which closes the toolbar popup.
- await reviewStore('readwrite',store=>store.put({id:jobId,kind:'send-job',files,prompt:REVIEW_PROMPT,url:REVIEW_URL,created:Date.now(),selected:false}));
+ await reviewStore('readwrite',store=>store.put({id:jobId,kind:'send-job',files,prompt,url:REVIEW_URL,created:Date.now(),selected:false}));
  const response=await chrome.runtime.sendMessage({type:'send-ecomm-review',jobId});
  if(!response?.runnerOpened)throw new Error(response?.error||'Transfer window did not start. Reload the extension, close old detached windows, and retry.');
  return jobId;

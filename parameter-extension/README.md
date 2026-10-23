@@ -192,3 +192,6 @@ A one-time native helper setup binds your existing folder and extension ID. Futu
 
 ### Version 2.3.0 — outer URL parameters
 One date/language pair is appended to the outer AppLovin preview URL. Fixer exports inherit accessible parent parameters before native readers run. Localhost/direct HTML remain supported; cross-origin/sandboxed hosts need explicit forwarding. See v2.3.0 release notes for examples and tests.
+
+### Version 2.3.1 — Review task name
+An optional remembered task field generates `check grammar and filename for task [task_name]` for upload drafts and review exports. The same prompt is previewed in Review; sending remains manual and the 20-file cap is unchanged.

@@ -1,5 +1,11 @@
 const REVIEW_MAX_FILES=20;
-const REVIEW_PROMPT='check for grammar and filename';
+const REVIEW_PROMPT='check grammar and filename';
+function buildReviewPrompt(taskName=''){
+ const name=String(taskName).trim();if(name.length>500)throw new Error('Task name must be 500 characters or fewer.');
+ return REVIEW_PROMPT+(name?' for task '+name:'');
+}
+function getReviewPrompt(){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'');}
+
 const REVIEW_URL='https://chatgpt.com/g/g-p-6aba53db995c819187554fe66297a936-emil-francia-ecomm-checker/c/6aba5459-e97c-83ec-9e60-8c167d76c1ab';
 let reviewDbPromise,reviewUrls=[];
 function reviewDb(){
@@ -87,7 +93,7 @@ async function removeReviewItems(all){
  else{const items=await reviewStore('readonly',store=>store.getAll());for(const item of items.filter(i=>i.selected))await reviewStore('readwrite',store=>store.delete(item.id));}
  await renderReview();
 }
-async function createReviewPackage(){
+async function createReviewPackage(prompt=getReviewPrompt()){
  const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.selected&&(i.kind==='html'||i.kind==='image'));
  if(items.length>REVIEW_MAX_FILES)throw new Error('Select no more than 20 files total (HTML + images).');
  if(!items.some(i=>i.kind==='html')||!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot and add/select its original HTML file.');
@@ -97,12 +103,19 @@ async function createReviewPackage(){
   while(names.has(name.toLowerCase()))name=index+++'_'+base;
   names.add(name.toLowerCase());entries.push({name,data:new Uint8Array(await item.blob.arrayBuffer())});
  }
- entries.push({name:'review-prompt.txt',text:REVIEW_PROMPT});
+ entries.push({name:'review-prompt.txt',text:prompt});
  entries.push({name:'capture-details.json',text:JSON.stringify(items.map(({name,kind,metadata,created})=>({name,kind,metadata,created})),null,2)});
  return makeZip(entries);
 }
 function downloadReview(blob){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='ecomm-checker-review-'+Date.now()+'.zip';link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 const reviewStatus=document.getElementById('review-status');
+const reviewTaskName=document.getElementById('review-task-name');let taskNameEdited=false;
+function updateReviewPromptPreview(){document.getElementById('review-prompt-preview').textContent='Prompt: '+getReviewPrompt();}
+reviewTaskName.addEventListener('input',()=>{
+ taskNameEdited=true;updateReviewPromptPreview();chrome.storage.local.set({reviewTaskName:reviewTaskName.value}).catch(error=>{reviewStatus.textContent='Could not save task name: '+error.message;});
+});
+chrome.storage.local.get('reviewTaskName').then(saved=>{if(!taskNameEdited&&typeof saved.reviewTaskName==='string')reviewTaskName.value=saved.reviewTaskName.slice(0,500);updateReviewPromptPreview();}).catch(()=>updateReviewPromptPreview());
+updateReviewPromptPreview();
 chrome.storage.local.get('reviewSendStatus').then(saved=>{if(saved.reviewSendStatus)reviewStatus.textContent=saved.reviewSendStatus;});
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.reviewSendStatus)reviewStatus.textContent=changes.reviewSendStatus.newValue;});
 window.addEventListener('preview-target-ready',collectCurrentLocalHtml);
@@ -112,9 +125,9 @@ for(const [id,action] of [['review-delete',()=>removeReviewItems(false)],['revie
 }
 async function exportReview(openChecker){
  try{
-  const blob=await createReviewPackage();downloadReview(blob);
-  let copied=false;try{await navigator.clipboard.writeText(REVIEW_PROMPT);copied=true;}catch(_){}
-  reviewStatus.textContent='Package downloaded. Extract the ZIP, attach the HTML and PNG files in the checker, '+(copied?'paste the copied prompt':'type: '+REVIEW_PROMPT)+', then send. Files have not been uploaded automatically.';
+  const prompt=getReviewPrompt(),blob=await createReviewPackage(prompt);downloadReview(blob);
+  let copied=false;try{await navigator.clipboard.writeText(prompt);copied=true;}catch(_){}
+  reviewStatus.textContent='Package downloaded. Extract the ZIP, attach the HTML and PNG files in the checker, '+(copied?'paste the copied prompt':'type: '+prompt)+', then send. Files have not been uploaded automatically.';
   if(openChecker)await chrome.tabs.create({url:REVIEW_URL});
  }catch(error){reviewStatus.textContent=error.message;}
 }
