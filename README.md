@@ -1,4 +1,4 @@
-# Parameter Checker Extension
+# Creative Date Preview extension
 
 ## Version 1.1 additions
 
