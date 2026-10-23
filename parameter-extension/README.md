@@ -77,3 +77,9 @@ Removed Preview point. Preview date is the sole date control. Selecting a range 
 ## Version 1.6.4 — computed Popsa promo dates
 Automatic dropdown detection now recognizes constrained literal date-comparison branches in addition to range tables: numeric year/month/day conditions and ISO date-string comparisons with inclusive/exclusive bounds. No uploaded JavaScript is executed during detection. The six supplied Popsa creatives yield Nov 30, Dec 1–21, and Dec 22, 2026. Their Black Friday fallback is unbounded and is not presented as a fabricated finite range. More complex computed schedules may still require additional detectors. Tests compare all 365 days of 2026 against each of the six actual creative selectors, and retain Foodvisor image-range detection.
 
+
+## Version 1.7 — GitHub update checks
+The extension checks main/parameter-extension/manifest.json in franciaemilhplgamedesign-tech/parameter-fixer-ext at install, browser startup, and every six hours. A higher manifest version sets a NEW toolbar badge. Check GitHub for updates runs a manual check; Download latest files opens the repository ZIP. Extract it, copy the contents of parameter-extension over the installed unpacked folder, then click Reload. Only version metadata is fetched; remote code is never executed. This is automatic update detection, not automatic code installation.
+
+Maintainers: commit the latest files inside parameter-extension/ and increase manifest.json version for every release. Changes without a higher version do not trigger the update badge. Chrome/Edge store publication is needed for normal end-user automatic installation. If the repository becomes private, unauthenticated update checks will fail; no GitHub tokens are embedded.
+
