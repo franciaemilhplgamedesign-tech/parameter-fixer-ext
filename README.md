@@ -19,7 +19,7 @@ AppLovin links now use `...Preview/?h=first.html&h2=second.html&date=2026-12-01&
 - Parameters: date/language testing across AppLovin iterations, local HTML and localhost, detected holiday ranges, Previous/Next and auto-refresh.
 - Parameter Fixer: supported date/language patches for current/bulk HTML.
 - Checker: MRAID/source/network/WebGL/end-scene checks, selected MIP 5 MB / SIP 3.4 MB caps, proposed fixes and compression.
-- Review: screenshots and original HTML, max 20 files total; optional remembered task name, export or upload with a task-aware review prompt for manual sending. Successful transfer closes its extra popup.
+- Review: screenshots and original HTML, max 20 files total; optional remembered task name and additional notes, export or upload with a task-aware review prompt for manual sending. Successful transfer closes its extra popup.
 
 Static checks are review aids, not certification. Test fixed creatives in the target container. Live ChatGPT behavior depends on its current controls and needs browser validation.
 
@@ -27,6 +27,6 @@ Static checks are review aids, not certification. Test fixed creatives in the ta
 
 Run scripts/build-release.ps1 on Windows to compile the helper and generate the extension ZIP, setup ZIP and SHA-256 assets. Upload to a draft GitHub release first; publish only when all assets exist. The native updater requires EC-FIX-IT-extension-vVERSION.zip plus .zip.sha256 for every future release. Checksum verification uses the trusted repository release; code-signing is not provided.
 
-[Latest release notes](RELEASE-NOTES-v2.3.1.md)
+[Latest release notes](RELEASE-NOTES-v2.3.2.md)
 
 Created By: Emil Son Francia | October 2026

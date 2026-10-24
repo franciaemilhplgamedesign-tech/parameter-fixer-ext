@@ -1,10 +1,11 @@
 const REVIEW_MAX_FILES=20;
 const REVIEW_PROMPT='check grammar and filename';
-function buildReviewPrompt(taskName=''){
+function buildReviewPrompt(taskName='',additionalNotes=''){
  const name=String(taskName).trim();if(name.length>500)throw new Error('Task name must be 500 characters or fewer.');
- return REVIEW_PROMPT+(name?' for task '+name:'');
+ const notes=String(additionalNotes).trim();if(notes.length>4000)throw new Error('Additional notes must be 4000 characters or fewer.');
+ return REVIEW_PROMPT+(name?' for task '+name:'')+(notes?'\nadditional notes: '+notes:'');
 }
-function getReviewPrompt(){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'');}
+function getReviewPrompt(){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'',typeof document==='undefined'?'':document.getElementById('review-additional-notes')?.value||'');}
 
 const REVIEW_URL='https://chatgpt.com/g/g-p-6aba53db995c819187554fe66297a936-emil-francia-ecomm-checker/c/6aba5459-e97c-83ec-9e60-8c167d76c1ab';
 let reviewDbPromise,reviewUrls=[];
@@ -115,6 +116,11 @@ reviewTaskName.addEventListener('input',()=>{
  taskNameEdited=true;updateReviewPromptPreview();chrome.storage.local.set({reviewTaskName:reviewTaskName.value}).catch(error=>{reviewStatus.textContent='Could not save task name: '+error.message;});
 });
 chrome.storage.local.get('reviewTaskName').then(saved=>{if(!taskNameEdited&&typeof saved.reviewTaskName==='string')reviewTaskName.value=saved.reviewTaskName.slice(0,500);updateReviewPromptPreview();}).catch(()=>updateReviewPromptPreview());
+const reviewAdditionalNotes=document.getElementById('review-additional-notes');let additionalNotesEdited=false;
+reviewAdditionalNotes.addEventListener('input',()=>{
+ additionalNotesEdited=true;updateReviewPromptPreview();chrome.storage.local.set({reviewAdditionalNotes:reviewAdditionalNotes.value}).catch(error=>{reviewStatus.textContent='Could not save additional notes: '+error.message;});
+});
+chrome.storage.local.get('reviewAdditionalNotes').then(saved=>{if(!additionalNotesEdited&&typeof saved.reviewAdditionalNotes==='string')reviewAdditionalNotes.value=saved.reviewAdditionalNotes.slice(0,4000);updateReviewPromptPreview();}).catch(()=>updateReviewPromptPreview());
 updateReviewPromptPreview();
 chrome.storage.local.get('reviewSendStatus').then(saved=>{if(saved.reviewSendStatus)reviewStatus.textContent=saved.reviewSendStatus;});
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.reviewSendStatus)reviewStatus.textContent=changes.reviewSendStatus.newValue;});
