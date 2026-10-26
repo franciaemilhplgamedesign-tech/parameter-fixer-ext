@@ -22,6 +22,10 @@ function inspectCreativeHtml(html) {
     });}catch(_){continue;}
     const key=[start,end,label].join('|');if(!seen.has(key)){seen.add(key);ranges.push({start,end,label});}
   }
+  for(const range of inspectBannerCalendars(inspectionSource)){
+    const key=[range.start,range.end,range.label].join('|');
+    if(!seen.has(key)){seen.add(key);ranges.push(range);}
+  }
   ranges.sort((a,b)=>a.start.localeCompare(b.start));
   ranges.push(...inspectCalendarBranches(inspectionSource));
   ranges.sort((a,b)=>a.start.localeCompare(b.start));
@@ -43,6 +47,32 @@ function inspectCreativeHtml(html) {
   ].join('\n')};
 }
 if(typeof module!=='undefined')module.exports={inspectCreativeHtml};
+
+function inspectBannerCalendars(source){
+ const ranges=[];
+ const valid=value=>{const date=new Date(value+'T12:00:00Z');return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===value;};
+ const add=(start,end,label)=>{if(valid(start)&&valid(end)&&start<=end)ranges.push({start,end,label});};
+ // Literal ISO schedule rows whose third column is an artwork ID, not copy.
+ for(const row of source.matchAll(/\[\s*(["'`])(\d{4}-\d{2}-\d{2})\1\s*,\s*(["'`])(\d{4}-\d{2}-\d{2})\3\s*,\s*(\d+)\s*,?\s*\]/g)){
+  add(row[2],row[4],'Banner '+row[5]);
+ }
+ // Bundled calendars: {2026:[[1026,1031,`art-key`,`Offer`],...]}.
+ // Require the complete year value to consist of literal four-column rows.
+ // No eval, function calls, interpolated templates, or computed expressions.
+ const literal='(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|`(?:\\\\.|[^`\\\\])*`)';
+ const rowPattern='\\[\\s*(\\d{3,4})\\s*,\\s*(\\d{3,4})\\s*,\\s*('+literal+')\\s*,\\s*('+literal+')\\s*,?\\s*\\]';
+ const tables=new RegExp('(?:[,{])\\s*["\'`]?(\\d{4})["\'`]?\\s*:\\s*\\[\\s*((?:'+rowPattern+'\\s*,?\\s*)+)\\]','g');
+ for(const table of source.matchAll(tables)){
+  const year=Number(table[1]);if(year<1900||year>2200)continue;
+  for(const row of table[2].matchAll(new RegExp(rowPattern,'g'))){
+   if(row[3].includes('${')||row[4].includes('${'))continue;
+   const iso=n=>year+'-'+String(Math.floor(Number(n)/100)).padStart(2,'0')+'-'+String(Number(n)%100).padStart(2,'0');
+   const label=row[4].slice(1,-1).replace(/\\([\\'"`])/g,'$1');
+   add(iso(row[1]),iso(row[2]),label);
+  }
+ }
+ return ranges;
+}
 
 function inspectCalendarBranches(source){
  const ranges=[];
