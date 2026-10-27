@@ -1,4 +1,5 @@
-function inspectCreativeHtml(html,depth=0) {
+function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) {
+  if(!Number.isInteger(previewYear)||previewYear<1900||previewYear>9998)previewYear=new Date().getFullYear();
   const ranges=[],seen=new Set();
   // Read literal data only; never evaluate uploaded JavaScript.
   // Image-based promos store large base64 assets in the same object as dates.
@@ -7,9 +8,16 @@ function inspectCreativeHtml(html,depth=0) {
   for(const match of inspectionSource.matchAll(/\{[^{}]*\}/g)){
     const item=match[0],get=key=>{const m=item.match(new RegExp('["\']?'+key+'["\']?\\s*:\\s*(["\'])(.*?)\\1'));return m?.[2];};
     const start=get('startDate')||get('start'),end=get('endDate')||get('end');
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(start||'')||!/^\d{4}-\d{2}-\d{2}$/.test(end||''))continue;
     const label=get('text')||get('name')||get('promo')||get('label')||get('id')||'Holiday';
-    const key=[start,end,label].join('|');if(!seen.has(key)){seen.add(key);ranges.push({start,end,label});}
+    const recurring=/^\d{2}-\d{2}$/.test(start||'')&&/^\d{2}-\d{2}$/.test(end||'');
+    if(!recurring&&(!/^\d{4}-\d{2}-\d{2}$/.test(start||'')||!/^\d{4}-\d{2}-\d{2}$/.test(end||'')))continue;
+    for(const year of recurring?[previewYear,previewYear+1]:[null]){
+     const first=recurring?year+'-'+start:start,last=recurring?year+'-'+end:end;
+     const valid=s=>{const d=new Date(s+'T12:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===s;};
+     // Do not invent a New Year wrap: these creatives compare bounds directly.
+     if(!valid(first)||!valid(last)||first>last)continue;
+     const key=[first,last,label].join('|');if(!seen.has(key)){seen.add(key);ranges.push({start:first,end:last,label,...(recurring?{recurring:true}:{})});}
+    }
   }
   // Positional schedule rows: [start ISO date, end ISO date, promo label].
   // Match literal values only; never evaluate a creative's JavaScript.
@@ -36,12 +44,12 @@ function inspectCreativeHtml(html,depth=0) {
   }
   if(depth<2){
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
-   if(analyzer){let budget=16000000;for(const doc of analyzer.analyze(html).documents){if(doc===html||doc.length>budget)continue;budget-=doc.length;ranges.push(...inspectCreativeHtml(doc,depth+1).ranges);}}
+   if(analyzer){let budget=16000000;for(const doc of analyzer.analyze(html).documents){if(doc===html||doc.length>budget)continue;budget-=doc.length;ranges.push(...inspectCreativeHtml(doc,depth+1,previewYear).ranges);}}
   }
   // Direct annual month/day windows. JavaScript getMonth() is zero-based.
   for(const m of inspectionSource.matchAll(/\b([\w$]+)\.getMonth\(\)\s*===\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*>=\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*<=\s*(\d{1,2})/g)){
    const month=Number(m[2])+1,start=Number(m[3]),end=Number(m[4]);if(month<1||month>12||start<1||start>end)continue;
-   for(const year of [new Date().getFullYear(),new Date().getFullYear()+1]){
+   for(const year of [previewYear,previewYear+1]){
     const iso=day=>year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
     const last=new Date(Date.UTC(year,month,0)).getUTCDate();if(end<=last)ranges.push({start:iso(start),end:iso(end),label:'Annual promo',recurring:true});
    }

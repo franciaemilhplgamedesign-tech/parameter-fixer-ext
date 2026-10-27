@@ -13,7 +13,7 @@ function onPreviewChange(){
  autoTimer=setTimeout(()=>apply(dateInput.value),350);
 }
 const buttons=[document.getElementById('apply'),document.getElementById('clear')];
-let currentTab;
+let currentTab,holidayPreviewYear,holidayScanId=0;
 const holidaySelect=document.getElementById('holiday');
 connectRangePicker(holidaySelect,dateInput,onPreviewChange);
 connectRangeNavigation(holidaySelect,document.getElementById('holiday-prev'),document.getElementById('holiday-next'),dateInput);
@@ -54,6 +54,7 @@ async function apply(date){
 buttons[0].addEventListener('click',()=>{if(!dateInput.value){statusEl.textContent='Choose a date first.';return;}apply(dateInput.value);});
 buttons[1].addEventListener('click',()=>{clearTimeout(autoTimer);dateInput.value='';apply('');});
 dateInput.addEventListener('change',onPreviewChange);
+dateInput.addEventListener('change',()=>{if(validDate(dateInput.value)&&Number(dateInput.value.slice(0,4))!==holidayPreviewYear)scanHolidays();});
 languageInput.addEventListener('change',()=>{showCustom();if(languageInput.value!=='custom')onPreviewChange();});
 customLanguage.addEventListener('change',onPreviewChange);
 autoRefresh.addEventListener('change',async()=>{
@@ -61,9 +62,11 @@ autoRefresh.addEventListener('change',async()=>{
  await chrome.storage.local.set({autoRefresh:autoRefresh.checked});
 });
 async function scanHolidays(){
+ const scanId=++holidayScanId;
  const refreshButton=document.getElementById('inspect');refreshButton.disabled=true;refreshButton.textContent='Detecting holidays…';
  try{
   const ranges=[],readErrors=[];
+  const year=validDate(dateInput.value)?Number(dateInput.value.slice(0,4)):new Date().getFullYear();holidayPreviewYear=year;
   const latest=await chrome.tabs.get(currentTab.id);currentTab=latest;
   const originalUrl=new URL(currentTab.url);
   if(originalUrl.protocol==='file:'||['localhost','127.0.0.1','[::1]'].includes(originalUrl.hostname)||originalUrl.hostname.endsWith('.localhost')){
@@ -71,12 +74,12 @@ async function scanHolidays(){
       if(originalUrl.protocol==='file:'){originalUrl.search='';originalUrl.hash='';}
       const response=await fetch(originalUrl.href,{cache:'no-store',signal:AbortSignal.timeout(12000)});
       if(!response.ok&&response.status!==0)throw new Error('Could not read source HTML: '+response.status);
-      ranges.push(...inspectCreativeHtml(await response.text()).ranges);
+      ranges.push(...inspectCreativeHtml(await response.text(),0,year).ranges);
     }catch(error){readErrors.push(error.message);}
   }
   try{
     const frames=await chrome.scripting.executeScript({target:{tabId:currentTab.id,allFrames:true},func:()=>({url:location.href,html:document.documentElement.outerHTML})});
-    ranges.push(...frames.flatMap(f=>inspectCreativeHtml(f.result?.html||'').ranges));
+    ranges.push(...frames.flatMap(f=>inspectCreativeHtml(f.result?.html||'',0,year).ranges));
   }catch(error){readErrors.push(error.message);}
   if(!ranges.length&&readErrors.length===2)throw new Error(readErrors.join(' '));
   // AppLovin keeps other iterations unloaded: inspect their same-origin HTML too.
@@ -86,13 +89,14 @@ async function scanHolidays(){
     await Promise.all(refs.map(async([key,ref])=>{
       try{const url=new URL(ref,'https://playable.applovindemo.com/phaser/');if(url.origin!==tabUrl.origin)return;
         const response=await fetch(url.href,{signal:AbortSignal.timeout(12000)});if(!response.ok)return;
-        ranges.push(...inspectCreativeHtml(await response.text()).ranges.map(r=>({...r,source:key})));
+        ranges.push(...inspectCreativeHtml(await response.text(),0,year).ranges.map(r=>({...r,source:key})));
       }catch(_){}
     }));
   }
+  if(scanId!==holidayScanId)return;
   populateRangeDropdown(holidaySelect,ranges.sort((a,b)=>a.start.localeCompare(b.start)));
- }catch(error){populateRangeDropdown(holidaySelect,[]);statusEl.textContent='Could not detect holidays: '+error.message+' For local files, enable Allow access to file URLs in extension settings.';}
- finally{refreshButton.disabled=false;refreshButton.textContent='Refresh detected holidays';}
+ }catch(error){if(scanId!==holidayScanId)return;populateRangeDropdown(holidaySelect,[]);statusEl.textContent='Could not detect holidays: '+error.message+' For local files, enable Allow access to file URLs in extension settings.';}
+ finally{if(scanId===holidayScanId){refreshButton.disabled=false;refreshButton.textContent='Refresh detected holidays';}}
 }
 document.getElementById('inspect').addEventListener('click',scanHolidays);
 document.getElementById('detach').addEventListener('click',async()=>{
