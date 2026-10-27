@@ -1,0 +1,23 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const el=()=>({listeners:{},attributes:{},dataset:{},children:[],addEventListener(t,fn){this.listeners[t]=fn},setAttribute(k,v){this.attributes[k]=v},replaceChildren(){this.children=[]},append(...nodes){this.children.push(...nodes)},appendChild(n){this.children.push(n)}});
+const ids={},tabs=['parameter','mraid','datefix'].map(name=>({...el(),dataset:{suiteTab:name}})),panels=['parameter','mraid','datefix'].map(name=>({...el(),dataset:{suitePanel:name}}));
+const c={window:{addEventListener:()=>{}},document:{querySelectorAll:s=>s==='[data-suite-tab]'?tabs:panels,getElementById:id=>ids[id]??=el(),createElement:el},chrome:{storage:{onChanged:{addListener:()=>{}}}}};
+vm.createContext(c);vm.runInContext(fs.readFileSync('parameter-extension/mraid-checks.js','utf8'),c);vm.runInContext(fs.readFileSync('parameter-extension/suite-ui.js','utf8'),c);
+assert.equal(tabs[0].attributes['aria-selected'],'true');assert.equal(panels[0].hidden,false);assert(panels[1].hidden);assert(panels[2].hidden);
+tabs[1].listeners.click();assert.equal(panels[1].hidden,false);assert(panels[0].hidden);
+c.renderMraid({issues:3,errors:1,warnings:2,bytes:100,findings:[{status:'warning',title:'Test',description:'Evidence',evidence:'<script>source</script>',line:1}],scope:'static'});
+assert.equal(ids['mraid-issues'].textContent,3);assert.equal(ids['mraid-issues'].hidden,false);assert.equal(ids['mraid-results'].children.length,1);
+vm.runInContext(fs.readFileSync('parameter-extension/mraid-checks.js','utf8'),c);
+c.currentTab={id:9};let sent;
+const legacy={issues:0,errors:0,warnings:0,bytes:4440822,sourceUrl:'file:///C:/test_mip.html',findings:[{id:'size',status:'pass',title:'HTML size (5 MB project profile)',description:'Old 5 MB limit'}]};
+c.chrome.runtime={sendMessage:async message=>{sent=message;return {report:legacy}}};
+(async()=>{
+ ids['creative-type'].value='sip';
+ await ids['creative-type'].listeners.change({target:ids['creative-type']});
+ let card=ids['mraid-results'].children[0];assert.equal(card.className,'check-result check-error');assert(card.children[0].textContent.includes('SIP'));assert(card.children[1].textContent.includes('3,565,158'));
+ await ids['mraid-refresh'].listeners.click({type:'click'});assert.equal(sent.creativeType,'sip');
+ card=ids['mraid-results'].children[0];assert.equal(card.className,'check-result check-error');assert.equal(ids['mraid-issues'].textContent,1);
+ ids['creative-type'].value='mip';await ids['creative-type'].listeners.change({target:ids['creative-type']});
+ card=ids['mraid-results'].children[0];assert.equal(card.className,'check-result check-pass');assert(card.children[1].textContent.includes('5,242,880'));
+ console.log('Passed legacy cached size-card correction, SIP error/badge, explicit recheck selection and MIP pass.');
+})();

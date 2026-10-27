@@ -159,7 +159,7 @@ Adds a MIP end-scene Base64 project-policy check. It applies to identified end-s
 
 
 ## Local test v1.9.4 — MIP/SIP limits and browser-local compressor
-Checker now uses decimal limits: MIP 5,000,000 bytes, SIP 3,400,000 bytes. Filenames are the primary type signal; known interactive/end-scene structures can identify MIPs. An unresolved type raises a warning and uses the conservative SIP cap. Select Auto/MIP/SIP in Checker to correct ambiguity; the selection is saved per source URL and used by future automatic checks. The explicit MRAID-fixed download uses the same selected limit.
+Checker now uses Windows-style limits: MIP 5,242,880 bytes, SIP 3,565,158 bytes. Filenames are the primary type signal; known interactive/end-scene structures can identify MIPs. An unresolved type raises a warning and uses the conservative SIP cap. Select Auto/MIP/SIP in Checker to correct ambiguity; the selection is saved per source URL and used by future automatic checks. The explicit MRAID-fixed download uses the same selected limit.
 
 Compressor operates on the current local/localhost HTML and downloads a copy, never overwriting source. It bundles html-minifier-terser 7.2.0 locally with its license notices. It removes ordinary HTML comments and minifies inline JavaScript with variable mangling and logic compression disabled; rendered HTML whitespace and CSS remain unchanged. Embedded image optimization is opt-in and lossy: converts supported static images to WebP at selected quality, optionally reduces dimensions, and only replaces a URL when its encoded length shrinks. Duplicate image URLs are processed once. GIF and recognized animated WebP/APNG are skipped. Video/audio/font payloads and encoded end scenes are not transcoded. The resulting HTML is checked again, with original/output byte counts, savings and remaining findings. An over-limit download is explicitly labeled still over limit, never described as compliant. Files dominated by MP4 payloads may require source-video re-encoding in an authoring tool. Test playback, layout, clickthrough, date/language and WebView image support before uploading.
 
@@ -174,7 +174,7 @@ Tests passed at exact limit boundaries, manual/unknown type selection, CSP-safe 
 
 
 ### Local test 1.9.6
-Creative-type changes queue a fresh check after any running automatic check. Stale results cannot reset the pending selection. MIP uses 5,000,000 bytes; SIP uses 3,400,000 bytes.
+Creative-type changes queue a fresh check after any running automatic check. Stale results cannot reset the pending selection. MIP uses 5,242,880 bytes; SIP uses 3,565,158 bytes (1 MB = 1,048,576 bytes; fractional SIP cap rounded down to whole bytes).
 
 
 ### Local test 1.9.7

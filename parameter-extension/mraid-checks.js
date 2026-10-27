@@ -1,3 +1,4 @@
+function formatCreativeSize(bytes){return (bytes/1048576).toFixed(2)+' MB';}
 function isLocalCreativeUrl(input){
  try{const u=new URL(input);return u.protocol==='file:'?/\.html?$/i.test(u.pathname):['http:','https:'].includes(u.protocol)&&(['localhost','127.0.0.1','[::1]'].includes(u.hostname)||u.hostname.endsWith('.localhost'));}catch(_){return false;}
 }
@@ -7,7 +8,7 @@ function creativeSizeProfile(html,sourceUrl='',mode='auto'){
  if(!type&&/(?:^|[_/.-])mip(?:[_/.-]|$)/i.test(filename)){type='mip';reason='filename';}
  if(!type&&/(?:^|[_/.-])sip(?:[_/.-]|$)/i.test(filename)){type='sip';reason='filename';}
  if(!type&&/title\s*:\s*["']End Scene["']|kind["']?\s*:\s*["'](?:endscene|game|scratch|spinwheel|quiz)["']|__eccFrameDocument\(\w+,/i.test(html)){type='mip';reason='interactive/end-scene structure';}
- return {type:type||'unknown',mode,reason:reason||'type not resolved; conservative SIP cap',limitBytes:type==='mip'?5000000:3400000,label:type==='mip'?'MIP · 5 MB':type==='sip'?'SIP · 3.4 MB':'Unknown type · conservative 3.4 MB'};
+ return {type:type||'unknown',mode,reason:reason||'type not resolved; conservative SIP cap',limitBytes:type==='mip'?5*1048576:Math.floor(3.4*1048576),label:type==='mip'?'MIP · 5 MB':type==='sip'?'SIP · 3.4 MB':'Unknown type · conservative 3.4 MB'};
 }
 function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  const findings=[];
@@ -69,7 +70,7 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  const nativeFallback=loss&&/webgl[^\n]{0,100}(?:not supported|unavailable|failed)|(?:show|display|render)[\w$]*Fallback/i.test(code)&&/if\s*\(\s*![\w$]+\s*\)/.test(code);
  add('webgl','WebGL fallback (if WebGL used)',!usesWebgl||(guarded&&!/\bOffscreenCanvas\b/.test(code))||nativeFallback?'pass':'warning',!usesWebgl?'No supported WebGL usage patterns detected.':guarded&&/\bOffscreenCanvas\b/.test(code)?'HTML canvas safeguard installed; OffscreenCanvas/worker fallback still requires manual source handling.':guarded?'Visible initialization-failure/context-loss safeguard installed for HTML canvas WebGL. Test it in the target container.':nativeFallback?'Context-loss handling and fallback signals detected; manually verify init-failure and visible fallback behavior.':loss?'WebGL context-loss listener detected, but visible fallback/init-failure handling could not be verified.':'WebGL used with no context-loss handling. Add a visible fallback for initialization failure and context loss.');
  const profile=creativeSizeProfile(html,sourceUrl,creativeType);
- add('size','HTML size ('+profile.label+')',bytes>profile.limitBytes?'error':'pass',bytes.toLocaleString('en-US')+' / '+profile.limitBytes.toLocaleString('en-US')+' bytes. Decimal MB; detected by '+profile.reason+'.');
+ add('size','HTML size ('+profile.label+')',bytes>profile.limitBytes?'error':'pass',formatCreativeSize(bytes)+' / '+formatCreativeSize(profile.limitBytes)+' ('+bytes.toLocaleString('en-US')+' / '+profile.limitBytes.toLocaleString('en-US')+' bytes). Windows sizing: 1 MB = 1,048,576 bytes; detected by '+profile.reason+'.');
  if(profile.type==='unknown')add('creative-type','Creative type','warning','Could not determine MIP or SIP confidently. Select the correct type in Checker; until then the stricter 3.4 MB cap is used.');
  const encoded=/data:text\/html|DecompressionStream|srcDoc\s*:|\.srcdoc\s*=/i.test(html);
  add('embedded','Embedded document coverage',encoded?'warning':'pass',encoded?'Embedded/encoded HTML detected. This report covers the outer source; inspect each decoded end card separately.':'No supported embedded-document patterns detected.');
@@ -78,7 +79,7 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  const errors=findings.filter(f=>f.status==='error').length,warnings=findings.filter(f=>f.status==='warning').length;
  return {sourceUrl,bytes,profile,checkedAt:Date.now(),findings,errors,warnings,issues:errors+warnings,scope:'Static source inspection, not MRAID certification. Minified aliases, comments and dynamically constructed code require manual review.'};
 }
-if(typeof module!=='undefined')module.exports={isLocalCreativeUrl,checkMraidHtml,creativeSizeProfile};
+if(typeof module!=='undefined')module.exports={isLocalCreativeUrl,checkMraidHtml,creativeSizeProfile,formatCreativeSize};
 
 function checkMipEndScenes(html,sourceUrl='',analysis=null){
  const explicitEnd=/title\s*:\s*["']End Scene["']|class(?:Name)?\s*[:=]\s*["'][^"']*(?:endscene|end-scene|endcard|end-card)|kind["']?\s*:\s*["']endscene["']|\b(?:endscene|endScene|endCard)["']?\s*:\s*\{|__eccFrameDocument\(\w+,/i.test(html);

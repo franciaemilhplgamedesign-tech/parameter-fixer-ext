@@ -14,15 +14,16 @@ let pendingCreativeType=null,typeRequest=0,lastMraidReport=null,selectedCreative
 function renderMraid(report){
  const mode=selectedCreativeType??pendingCreativeType;
  if(mode&&typeof creativeSizeProfile==='function'){
-  const profile=mode==='auto'&&report.profile?.mode==='auto'?report.profile:creativeSizeProfile('',report.sourceUrl,mode);
+  let profile=mode==='auto'&&report.profile?.mode==='auto'?report.profile:creativeSizeProfile('',report.sourceUrl,mode);
+  profile={...profile,limitBytes:creativeSizeProfile('',report.sourceUrl,profile.type==='mip'?'mip':'sip').limitBytes};
   const findings=report.findings.filter(f=>f.id!=='size'&&!/^HTML size\b/i.test(f.title));
-  findings.push({id:'size',title:'HTML size ('+profile.label+')',status:report.bytes>profile.limitBytes?'error':'pass',description:report.bytes.toLocaleString('en-US')+' / '+profile.limitBytes.toLocaleString('en-US')+' bytes. Limit follows the selected creative type.'});
+  findings.push({id:'size',title:'HTML size ('+profile.label+')',status:report.bytes>profile.limitBytes?'error':'pass',description:formatCreativeSize(report.bytes)+' / '+formatCreativeSize(profile.limitBytes)+' ('+report.bytes.toLocaleString('en-US')+' / '+profile.limitBytes.toLocaleString('en-US')+' bytes). Windows sizing; limit follows the selected creative type.'});
   const errors=findings.filter(f=>f.status==='error').length,warnings=findings.filter(f=>f.status==='warning').length;
   report={...report,profile,findings,errors,warnings,issues:errors+warnings};
  }
  lastMraidReport=report;
  const count=document.getElementById('mraid-issues');count.textContent=report.issues;count.hidden=!report.issues;
- document.getElementById('mraid-summary').textContent=report.errors+' errors · '+report.warnings+' warnings · '+report.bytes.toLocaleString()+' bytes';
+ document.getElementById('mraid-summary').textContent=report.errors+' errors · '+report.warnings+' warnings · '+formatCreativeSize(report.bytes)+' ('+report.bytes.toLocaleString()+' bytes)';
  if(report.profile){document.getElementById('creative-type').value=report.profile.mode;document.getElementById('creative-limit').textContent=report.profile.label+' · '+report.profile.reason;}
  const list=document.getElementById('mraid-results');list.replaceChildren();
  for(const finding of report.findings){

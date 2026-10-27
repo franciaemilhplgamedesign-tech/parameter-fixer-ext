@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EC-FIX-IT",
-  "version": "2.3.4",
+  "version": "2.3.5",
   "description": "Test SIP/MIP date and language parameters, check MRAID and size limits, fix HTML, compress creatives and collect reviews.",
   "permissions": [
     "activeTab",
