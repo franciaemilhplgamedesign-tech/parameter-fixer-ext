@@ -27,8 +27,10 @@ Static checks are review aids, not certification. Test fixed creatives in the ta
 
 Run scripts/build-release.ps1 on Windows to compile the helper and generate the extension ZIP, setup ZIP and SHA-256 assets. Upload to a draft GitHub release first; publish only when all assets exist. The native updater requires EC-FIX-IT-extension-vVERSION.zip plus .zip.sha256 for every future release. Checksum verification uses the trusted repository release; code-signing is not provided.
 
-[Latest release notes](RELEASE-NOTES-v2.3.6.md)
+[Latest release notes](RELEASE-NOTES-v2.3.7.md)
 
 Created By: Emil Son Francia | October 2026
 
 The toolbar icon opens a persistent browser side panel. It stays open while you interact with the preview, follows tab changes in its own browser window, and retains the optional detached window. Close the side panel when allowing an automatic update to install.
+
+Screenshot capture requests optional browser capture access on its first click. This is needed when a persistent side panel or detached window no longer has temporary activeTab access. Grant the browser prompt once; local files also require Allow access to file URLs.

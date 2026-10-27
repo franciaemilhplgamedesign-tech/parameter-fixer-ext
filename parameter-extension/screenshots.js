@@ -1,3 +1,10 @@
+function requestScreenshotAccess(api=chrome){
+ // Call directly from the capture click, before any awaited tab/file work.
+ if(!api.permissions?.request)return Promise.reject(new Error('Screenshot permission API unavailable. Reload the updated extension.'));
+ return api.permissions.request({origins:['<all_urls>']}).then(granted=>{
+  if(!granted)throw new Error('Screenshot access was not granted. Click Take screenshot again and allow the browser permission.');
+ });
+}
 function screenshotGeometry(imageWidth,imageHeight,viewport,rect,size) {
   const sx=imageWidth/viewport.width,sy=imageHeight/viewport.height;
   if(rect.x<0 || rect.y<0 || rect.x+rect.width>viewport.width+1 || rect.y+rect.height>viewport.height+1)throw new Error('The preview is partly off screen. Fit it inside the browser window before capturing.');
@@ -8,7 +15,7 @@ function screenshotGeometry(imageWidth,imageHeight,viewport,rect,size) {
   const scale=Math.min(width/crop.width,height/crop.height),w=crop.width*scale,h=crop.height*scale;
   return {crop,width,height,dest:{x:(width-w)/2,y:(height-h)/2,width:w,height:h}};
 }
-if(typeof module!=='undefined')module.exports={screenshotGeometry};
+if(typeof module!=='undefined')module.exports={screenshotGeometry,requestScreenshotAccess};
 if(typeof document!=='undefined'){
  const sizeSelect=document.getElementById('shot-size');
  sizeSelect.addEventListener('change',()=>{document.getElementById('shot-custom').hidden=sizeSelect.value!=='custom';});
@@ -16,7 +23,9 @@ if(typeof document!=='undefined'){
   const button=document.getElementById('capture'),output=document.getElementById('shot-status');button.disabled=true;
   try{
    if(!currentTab)throw new Error('Open a preview tab first.');
+   await requestScreenshotAccess();
    const tab=await chrome.tabs.get(currentTab.id);
+   if(tab.url?.startsWith('file:')&&!await chrome.extension.isAllowedFileSchemeAccess())throw new Error('Enable Allow access to file URLs in the extension settings to capture local HTML.');
    if(!tab.active)throw new Error('Select the linked preview tab in its browser window before capturing.');
    if(tab.status==='loading')throw new Error('Wait for the preview to finish loading.');
    const mode='viewport';
@@ -29,7 +38,11 @@ if(typeof document!=='undefined'){
     if(!preferred)throw new Error('No visible creative frame, video, or canvas found. Select Full visible page instead.');
     const r=preferred.rect;return {viewport,rect:{x:r.x,y:r.y,width:r.width,height:r.height},label:'creative'};
    }});
+   const [active]=await chrome.tabs.query({active:true,windowId:tab.windowId});
+   if(active?.id!==tab.id)throw new Error('The active tab changed. Return to the linked preview and try again.');
    const data=await chrome.tabs.captureVisibleTab(tab.windowId,{format:'png'});
+   const [captured]=await chrome.tabs.query({active:true,windowId:tab.windowId});
+   if(captured?.id!==tab.id)throw new Error('The active tab changed during capture. Screenshot discarded; return to the preview and try again.');
    const image=new Image();image.src=data;await image.decode();
    let size;
    if(sizeSelect.value==='custom')size={width:Number(document.getElementById('shot-width').value),height:Number(document.getElementById('shot-height').value)};
@@ -43,6 +56,6 @@ if(typeof document!=='undefined'){
    const name='creative-'+(document.getElementById('date').value||'real-date')+'-'+g.width+'x'+g.height+'-'+Date.now()+'.png';
    await saveScreenshot(blob,name,{sourceUrl:tab.url,date:document.getElementById('date').value,language:selectedLanguage(),width:g.width,height:g.height});
    output.textContent='Captured '+g.width+' × '+g.height+' px. Added to the saved review gallery.';
-  }catch(error){output.textContent=error.message+' If browser access was lost, reopen the extension from the preview tab. Local captures require Allow access to file URLs.';}finally{button.disabled=false;}
+  }catch(error){output.textContent=error.message;}finally{button.disabled=false;}
  });
 }
