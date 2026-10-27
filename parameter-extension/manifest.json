@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EC-FIX-IT",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "description": "Test SIP/MIP date and language parameters, check MRAID and size limits, fix HTML, compress creatives and collect reviews.",
   "permissions": [
     "activeTab",
@@ -9,7 +9,8 @@
     "scripting",
     "alarms",
     "clipboardWrite",
-    "nativeMessaging"
+    "nativeMessaging",
+    "sidePanel"
   ],
   "host_permissions": [
     "file:///*",
@@ -70,11 +71,13 @@
       "32": "ec-logo-w.png",
       "48": "ec-logo-w.png",
       "128": "ec-logo-w.png"
-    },
-    "default_popup": "popup.html"
+    }
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; frame-src 'self';"
   },
-  "minimum_chrome_version": "116"
+  "minimum_chrome_version": "116",
+  "side_panel": {
+    "default_path": "popup.html?panel=1"
+  }
 }

@@ -1,3 +1,4 @@
+if(chrome.sidePanel?.setPanelBehavior)chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(error=>console.warn('Could not enable persistent panel:',error.message));
 importScripts('updates.js');
 importScripts('native-updates.js');
 importScripts('send-checker.js');
