@@ -1,7 +1,7 @@
 importScripts('updates.js');
 importScripts('native-updates.js');
 importScripts('send-checker.js');
-importScripts('mraid-checks.js');
+importScripts('vendor/acorn.js','creative-source.js','mraid-checks.js');
 async function scheduleUpdateChecks(){
  await chrome.alarms.create('github-update-check',{periodInMinutes:360});
  await checkExtensionUpdate();

@@ -11,6 +11,7 @@ function creativeSizeProfile(html,sourceUrl='',mode='auto'){
 }
 function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  const findings=[];
+ const analysis=typeof CreativeSource!=='undefined'?CreativeSource.analyze(html):typeof require==='function'?require('./creative-source').analyze(html):null;
  function add(id,title,status,description,evidence=''){
   const index=evidence?html.indexOf(evidence):-1;
   findings.push({id,title,status,description,evidence:evidence.slice(0,220),line:index>=0?html.slice(0,index).split('\n').length:null});
@@ -29,7 +30,7 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  add('click','MRAID clickthrough',/\bmraid\.open\s*\(/.test(code)?'pass':opens?'warning':'error',/\bmraid\.open\s*\(/.test(code)?'Direct mraid.open call detected; exercise the CTA in a real container.':opens?'Possible aliased bridge.open call. Verify the alias and CTA wiring manually.':'No identifiable MRAID clickthrough found.');
  const windowOpen=code.match(/\bwindow\.open\s*\([^\n;]{0,150}/);
  add('window-open','Browser window.open fallback',windowOpen?'warning':'pass',windowOpen?'Browser fallback found. Verify it cannot run instead of mraid.open inside the ad container.':'No direct window.open call found.',windowOpen?.[0]||'');
- const redirect=code.match(/(?:\b(?:window\.)?location\.(?:href\s*=|assign\s*\(|replace\s*\())[^\n;]{0,140}/);
+ const redirect=code.match(/(?:\b(?:window\.)?location\.(?:href\s*=(?!=|>)|assign\s*\(|replace\s*\())[^\n;]{0,140}/);
  add('navigation','Direct page redirects',redirect?'warning':'pass',redirect?'Potential direct navigation found; inspect whether this is a CTA redirect or legitimate internal state handling.':'No direct location navigation detected.',redirect?.[0]||'');
  const media=/<(?:video|audio)\b|new\s+(?:Audio|AudioContext)|createElement\s*\(\s*["'](?:video|audio)["']|data:(?:video|audio)\//i.test(html);
  const visibility=/isViewable\s*\(/.test(code)&&/["']viewableChange["']/.test(code);
@@ -38,13 +39,26 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  add('clicktag','Click target fallback (project guideline)',tags.length===4?'pass':'warning',tags.length===4?'All four click target aliases detected.':'Verify the target expected by your ad network. Missing aliases are a project-guideline warning, not a universal MRAID failure.');
  const touch=/["']touchend["']/.test(code)&&/["'](?:click|pointerup)["']/.test(code);
  add('tap','Touch/click duplication',touch&&!/(?:lastTap|debounc|preventDefault|timeStamp)/i.test(code)?'warning':'pass',touch?'Multiple input types detected; verify one CTA per tap.':'No overlapping touchend/click handling detected.');
- const remotes=[];
- for(const m of html.matchAll(/<(?:script|link|img|video|audio|source)\b[^>]*?\b(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi)){
+ const remotes=[],dynamicAssets=[];
+ // Inspect actual markup separately from JavaScript template source.
+ const markup=html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,tag=>tag.slice(0,tag.indexOf('>')+1)+'</script>');
+ for(const m of markup.matchAll(/<(?:script|link|img|video|audio|source)\b[^>]*?\b(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi)){
   if(/(?:^|\/)mraid(?:\.min)?\.js(?:[?#].*)?$/i.test(m[1]))continue;
   if(!/^(?:data:|blob:|#)/i.test(m[1]))remotes.push(m[1]);
  }
- for(const m of html.matchAll(/url\(\s*["']?([^\s)'"\n]+)["']?\s*\)/gi))if(!/^(?:data:|blob:|#)/i.test(m[1]))remotes.push(m[1]);
- add('assets','Self-contained assets',remotes.length?'error':'pass',remotes.length?remotes.length+' external or unbundled asset references found (excluding mraid.js). Inline creative dependencies.':'No external/local asset references found in supported HTML/CSS patterns.',remotes[0]||'');
+ function cssAssets(text){for(const m of text.matchAll(/url\(\s*["']?([^\s)'"\n]+)["']?\s*\)/gi))if(!/^(?:data:|blob:|#)/i.test(m[1]))remotes.push(m[1]);}
+ cssAssets(markup);
+ if(analysis)for(const node of analysis.nodes){
+  if(node.type==='Literal'&&typeof node.value==='string'&&/url\(/i.test(node.value))cssAssets(node.value);
+  if(node.type==='TemplateLiteral'&&node.quasis.some(q=>/url\(/i.test(q.value.cooked||''))){
+   const value=analysis.resolve(node);if(typeof value?.value==='string')cssAssets(value.value);else dynamicAssets.push('Dynamic CSS asset expression');
+  }
+  if(node.type==='Property'&&['src','poster','lineImage'].includes(node.key.name??node.key.value)){
+   const value=analysis.resolve(node.value)?.value;if(typeof value==='string'&&value&&!/^(?:data:|blob:|#)|(?:^|\/)mraid\.js$/i.test(value))remotes.push(value);
+  }
+ }
+ if(analysis?.failures.length)add('source-parser','JavaScript inspection coverage','warning',analysis.failures.length+' script block(s) could not be parsed. Dynamic asset/end-scene inspection is incomplete; review these blocks manually.');
+ add('assets','Self-contained assets',remotes.length?'error':dynamicAssets.length?'warning':'pass',remotes.length?remotes.length+' external or unbundled asset references found (excluding mraid.js). Inline creative dependencies.':dynamicAssets.length?'No literal external asset found; '+dynamicAssets.length+' dynamic CSS expression(s) require runtime verification. Interpolated expressions are not external filenames.':'No external/local asset references found in supported HTML/CSS patterns.',remotes[0]||'');
  const apiPatterns={fetch:/\bfetch\s*\(/,XMLHttpRequest:/\bXMLHttpRequest\b/,WebSocket:/\bWebSocket\b/,EventSource:/\bEventSource\b/,sendBeacon:/\bsendBeacon\b/};
  const apis=Object.keys(apiPatterns).filter(name=>apiPatterns[name].test(code));
  const remote=code.match(/(?:\bfetch|new\s+(?:window\.)?(?:WebSocket|EventSource))\s*\(\s*["'](?:https?:|wss?:|\/\/)[^"']+["']/);
@@ -59,18 +73,36 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  if(profile.type==='unknown')add('creative-type','Creative type','warning','Could not determine MIP or SIP confidently. Select the correct type in Checker; until then the stricter 3.4 MB cap is used.');
  const encoded=/data:text\/html|DecompressionStream|srcDoc\s*:|\.srcdoc\s*=/i.test(html);
  add('embedded','Embedded document coverage',encoded?'warning':'pass',encoded?'Embedded/encoded HTML detected. This report covers the outer source; inspect each decoded end card separately.':'No supported embedded-document patterns detected.');
- const endScene=checkMipEndScenes(html,sourceUrl);
+ const endScene=checkMipEndScenes(html,sourceUrl,analysis);
  if(endScene)add('end-scene', 'MIP end-scene Base64 packaging (project policy)',endScene.status,endScene.description,endScene.evidence);
  const errors=findings.filter(f=>f.status==='error').length,warnings=findings.filter(f=>f.status==='warning').length;
  return {sourceUrl,bytes,profile,checkedAt:Date.now(),findings,errors,warnings,issues:errors+warnings,scope:'Static source inspection, not MRAID certification. Minified aliases, comments and dynamically constructed code require manual review.'};
 }
 if(typeof module!=='undefined')module.exports={isLocalCreativeUrl,checkMraidHtml,creativeSizeProfile};
 
-function checkMipEndScenes(html,sourceUrl=''){
+function checkMipEndScenes(html,sourceUrl='',analysis=null){
  const explicitEnd=/title\s*:\s*["']End Scene["']|class(?:Name)?\s*[:=]\s*["'][^"']*(?:endscene|end-scene|endcard|end-card)|kind["']?\s*:\s*["']endscene["']|\b(?:endscene|endScene|endCard)["']?\s*:\s*\{|__eccFrameDocument\(\w+,/i.test(html);
  const isMip=/_mip_/i.test(sourceUrl)||explicitEnd;
  if(!isMip)return null;
  const candidates=[];
+ if(analysis){
+  for(const node of analysis.nodes){
+   if(node.type==='ObjectExpression'){
+    const props=new Map(node.properties.filter(p=>p.type==='Property').map(p=>[p.key.name??p.key.value,p.value]));
+    const title=analysis.resolve(props.get('title'))?.value;
+    if(typeof title==='string'&&/end[- ]?(?:scene|card)|offer/i.test(title)&&props.has('srcDoc')){
+     for(const result of analysis.origins(props.get('srcDoc')))candidates.push({label:'end-scene srcDoc',index:0,value:result?.value||null,packaged:result?.packaged});
+    }
+    const id=analysis.resolve(props.get('htmlId'))?.value;
+    if(typeof id==='string'){
+     const asset=analysis.nodes.find(n=>n.type==='Property'&&(n.key.name??n.key.value)===id);
+     let result=asset&&analysis.resolve(asset.value);
+     if(result?.value&&typeof result.value==='object')result={value:result.value.src??result.value.html,packaged:false};
+     candidates.push({label:'end-scene HTML asset '+id,index:0,value:result?.value||null,packaged:result?.packaged});
+    }
+   }
+  }
+ }
  function literalAt(index){
   const quote=html[index];if(!['"',"'",'`'].includes(quote))return null;
   let end=index+1;for(;end<html.length;end++){if(html[end]==='\\'){end++;continue;}if(html[end]===quote)break;}
@@ -89,6 +121,7 @@ function checkMipEndScenes(html,sourceUrl=''){
   candidates.push({label,index,...item,value:item?.value||null});
  }
  for(const m of html.matchAll(/\bsrcDoc\s*:\s*/g)){
+  if(candidates.some(c=>c.label==='end-scene srcDoc'))continue;
   // Restrict React srcDoc to end-scene renderers, not arbitrary game iframes.
   const tail=html.slice(m.index,m.index+700);
   if(!/title\s*:\s*["']End Scene["']|end[- ]?(?:scene|card)/i.test(tail))continue;
@@ -96,10 +129,10 @@ function checkMipEndScenes(html,sourceUrl=''){
  }
  for(const m of html.matchAll(/\bsrcdoc\s*=\s*(["'])/gi)){
   // DOM attributes inside an end-scene container or a known MIP export.
-  if(!explicitEnd)continue;
+  if(!explicitEnd||candidates.some(c=>c.label==='end-scene srcDoc'))continue;
   const item=literalAt(m.index+m[0].length-1);candidates.push({label:'end-scene srcdoc attribute',...item});
  }
- if(explicitEnd)for(const m of html.matchAll(/\.srcdoc\s*=\s*/g))take(html.slice(m.index+m[0].length,m.index+m[0].length+400),m.index+m[0].length,'end-scene srcdoc assignment');
+ if(explicitEnd&&!candidates.some(c=>c.label.startsWith('end-scene HTML asset')))for(const m of html.matchAll(/\.srcdoc\s*=\s*/g))take(html.slice(m.index+m[0].length,m.index+m[0].length+400),m.index+m[0].length,'end-scene srcdoc assignment');
  for(const block of html.matchAll(/(?:endscene|endScene|endCard)["']?\s*:\s*\{[^{}]*\}/g)){
   for(const field of block[0].matchAll(/\b(?:html|src|url|htmlSrc|videoSrc)["']?\s*:\s*/g)){
    const index=block.index+field.index+field[0].length;take(html.slice(index,index+400),index,'configured end-scene source');
@@ -118,10 +151,11 @@ function checkMipEndScenes(html,sourceUrl=''){
   return {status:'warning',description:'MIP end-scene loader detected, but its source cannot be resolved statically. Verify the end-scene file is Base64 packaged; a decoder/helper name alone is not proof.',evidence:''};
  }
  const problems=[],unknown=[],passed=[];
- const uniqueCandidates=[...new Map(candidates.map(item=>[item.index+'|'+(item.value?.slice(0,100)||item.label),item])).values()];
+ const uniqueCandidates=[...new Map(candidates.map(item=>[item.index+'|'+item.packaged+'|'+(item.value||item.label),item])).values()];
  for(const item of uniqueCandidates){
   const value=item.value;
   if(!value){unknown.push(item);continue;}
+  if(item.packaged){passed.push(item);continue;}
   if(/^data:(?:text\/html|video\/[\w.+-]+|image\/[\w.+-]+|audio\/[\w.+-]+)(?:;charset=[\w-]+)?;base64,[A-Za-z0-9+/]+={0,2}$/i.test(value)&&value.slice(value.indexOf(',')+1).length%4===0){passed.push(item);continue;}
   if(/<\s*(?:!doctype\s+html|html|head|body|script|div|video|iframe)\b/i.test(value))problems.push({...item,reason:'raw HTML source'});
   else if(/^data:/i.test(value))problems.push({...item,reason:'not a valid Base64 media/HTML data URL'});

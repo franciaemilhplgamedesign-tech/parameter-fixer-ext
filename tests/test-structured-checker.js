@@ -1,0 +1,33 @@
+const assert=require('assert');
+const {checkMraidHtml}=require('../parameter-extension/mraid-checks');
+const {inspectCreativeHtml}=require('../parameter-extension/inspect');
+const CS=require('../parameter-extension/creative-source');
+const wrap=code=>'<html><head><script src="mraid.js"></script></head><body><script>'+code.replace(/<\/script/gi,'<\\/script')+'</script></body></html>';
+const finding=(s,id)=>checkMraidHtml(s,'file:///creative_mip_test.html','mip').findings.find(f=>f.id===id);
+for(const code of ['location.href === "about:srcdoc"','location.href == "string"','window.location.href !== "x"'])assert.equal(finding(wrap(code),'navigation').status,'pass');
+for(const code of ['location.href="https://example.com"','window.location.assign("https://example.com")','location.replace("x")'])assert.equal(finding(wrap(code),'navigation').status,'warning');
+assert.equal(finding(wrap('const font="data:font/woff2;base64,AAAA";const css=`@font-face{src:url(${font})}`'),'assets').status,'pass');
+assert.equal(finding(wrap('const css=`url(${runtime.value})`'),'assets').status,'warning');
+assert.equal(finding(wrap('const font="https://example.com/font.woff";const css=`url(${font})`'),'assets').status,'error');
+assert.equal(finding(wrap('const css="body{background:url(./photo.png)}"'),'assets').status,'error');
+assert.equal(finding(wrap('')+'<img src="./image.png">','assets').status,'error');
+const doc='<html><head></head><body><script>function clock(d){const key=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();return key>=20261117&&key<=20261130;}</'+'script></body></html>';
+const encoded=Buffer.from(doc).toString('base64'),data='data:text/html;base64,'+encoded;
+let source=wrap('const payload='+JSON.stringify(data)+';const decoded=new TextDecoder().decode(Uint8Array.from(atob(payload.split(",")[1]),c=>c.charCodeAt(0)));const frame={srcDoc:decoded,title:"End Scene"};');
+assert.equal(finding(source,'end-scene').status,'pass');
+assert.deepEqual(inspectCreativeHtml(source).ranges.map(r=>[r.start,r.end]),[['2026-11-17','2026-11-30']]);
+assert.equal(finding(wrap('const raw='+JSON.stringify(doc)+';const frame={title:"SIP end scene",srcDoc:raw};'),'end-scene').status,'error');
+assert.equal(finding(wrap('const frame={title:"End Scene",srcDoc:runtime.value};'),'end-scene').status,'warning');
+assert.equal(finding(wrap('window.PA_ASSETS={card:{src:'+JSON.stringify(data)+'}};const endscene={mode:"html",htmlId:"card"};'),'end-scene').status,'pass');
+assert.equal(finding(wrap('const frame={srcDoc:dynamic,title:"End Scene"};const other={srcDoc:'+JSON.stringify(data)+',title:"End Scene"};'),'end-scene').status,'warning');
+const reassigned=CS.analyze(wrap('let source="data:image/png;base64,AAAA";source="https://remote.test/a.png";const css=`url(${source})`'));assert.equal(reassigned.resolve(reassigned.nodes.find(n=>n.type==='TemplateLiteral')),null);
+global.__creativeExecuted=false;CS.analyze(wrap('globalThis.__creativeExecuted=true;fetch("https://example.com")'));assert.equal(global.__creativeExecuted,false);delete global.__creativeExecuted;
+assert.equal(finding(wrap('const broken = ;'),'source-parser').status,'warning');
+console.log('Passed structured assets, comparison/redirect distinction, UTF-8 Base64 packaging, asset-ID lookup, raw/unresolved scenes, embedded holiday dates, parser coverage and no execution.');
+
+const annual=inspectCreativeHtml(wrap('const now=new Date();const active=now.getMonth()===10&&now.getDate()>=17&&now.getDate()<=30;'));assert.equal(annual.ranges.length,2);assert(annual.ranges.every(r=>r.start.endsWith('-11-17')&&r.end.endsWith('-11-30')&&r.recurring));
+assert.equal(finding(source.replace('c=>c.charCodeAt(0)','c=>0'),'end-scene').status,'warning');
+assert.equal(finding(wrap('const variants={one:'+JSON.stringify(data)+',two:'+JSON.stringify(data)+'};const frame={srcDoc:variants[runtime],title:"End Scene"};'),'end-scene').status,'pass');
+
+const dataBlock='<script id="payload" type="application/octet-stream">'+encoded+'</'+'script>';const blockSource=wrap('const bytes=document.getElementById("payload").textContent.trim();const decoded=new TextDecoder().decode(Uint8Array.from(atob(bytes),c=>c.charCodeAt(0)));const frame={srcDoc:decoded,title:"End Scene"};')+dataBlock;assert.equal(finding(blockSource,'end-scene').status,'pass');assert(!finding(blockSource,'source-parser'));
+console.log('Passed annual windows, variant maps and non-executable Base64 script blocks.');

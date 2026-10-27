@@ -1,4 +1,4 @@
-function inspectCreativeHtml(html) {
+function inspectCreativeHtml(html,depth=0) {
   const ranges=[],seen=new Set();
   // Read literal data only; never evaluate uploaded JavaScript.
   // Image-based promos store large base64 assets in the same object as dates.
@@ -26,6 +26,27 @@ function inspectCreativeHtml(html) {
     const key=[range.start,range.end,range.label].join('|');
     if(!seen.has(key)){seen.add(key);ranges.push(range);}
   }
+  // Date keys calculated as YYYYMMDD (including calendars inside end cards).
+  if(/getFullYear\(\)/.test(inspectionSource)&&/getMonth\(\)/.test(inspectionSource)&&/getDate\(\)/.test(inspectionSource)){
+   for(const m of inspectionSource.matchAll(/\b([\w$]+)\s*>=\s*(\d{8})\s*&&\s*\1\s*<=\s*(\d{8})/g)){
+    const iso=s=>s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6),start=iso(m[2]),end=iso(m[3]);
+    const valid=s=>{const d=new Date(s+'T12:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===s;};
+    if(valid(start)&&valid(end)&&start<=end)ranges.push({start,end,label:'Calendar promo'});
+   }
+  }
+  if(depth<2){
+   const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
+   if(analyzer){let budget=16000000;for(const doc of analyzer.analyze(html).documents){if(doc===html||doc.length>budget)continue;budget-=doc.length;ranges.push(...inspectCreativeHtml(doc,depth+1).ranges);}}
+  }
+  // Direct annual month/day windows. JavaScript getMonth() is zero-based.
+  for(const m of inspectionSource.matchAll(/\b([\w$]+)\.getMonth\(\)\s*===\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*>=\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*<=\s*(\d{1,2})/g)){
+   const month=Number(m[2])+1,start=Number(m[3]),end=Number(m[4]);if(month<1||month>12||start<1||start>end)continue;
+   for(const year of [new Date().getFullYear(),new Date().getFullYear()+1]){
+    const iso=day=>year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    const last=new Date(Date.UTC(year,month,0)).getUTCDate();if(end<=last)ranges.push({start:iso(start),end:iso(end),label:'Annual promo',recurring:true});
+   }
+  }
+  const unique=new Map();for(const r of ranges)unique.set(r.start+'|'+r.end,r);ranges.splice(0,ranges.length,...unique.values());
   ranges.sort((a,b)=>a.start.localeCompare(b.start));
   ranges.push(...inspectCalendarBranches(inspectionSource));
   ranges.sort((a,b)=>a.start.localeCompare(b.start));
