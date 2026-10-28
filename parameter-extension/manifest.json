@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EC-FIX-IT",
-  "version": "2.3.8",
+  "version": "2.3.9",
   "description": "Test SIP/MIP date and language parameters, check MRAID and size limits, fix HTML, compress creatives and collect reviews.",
   "permissions": [
     "activeTab",
@@ -47,7 +47,8 @@
       ],
       "js": [
         "preview-parameter-runtime.js",
-        "preview-parameter-autoload.js"
+        "preview-parameter-autoload.js",
+        "applovin-frame-bridge.js"
       ],
       "run_at": "document_start",
       "all_frames": true,

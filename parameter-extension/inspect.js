@@ -44,7 +44,14 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
   }
   if(depth<2){
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
-   if(analyzer){let budget=16000000;for(const doc of analyzer.analyze(html).documents){if(doc===html||doc.length>budget)continue;budget-=doc.length;ranges.push(...inspectCreativeHtml(doc,depth+1,previewYear).ranges);}}
+   if(analyzer){
+    const analysis=analyzer.analyze(html);
+    for(const node of analysis.nodes){
+     const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
+     if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
+    }
+    let budget=16000000;for(const doc of analysis.documents){if(doc===html||doc.length>budget)continue;budget-=doc.length;ranges.push(...inspectCreativeHtml(doc,depth+1,previewYear).ranges);}
+   }
   }
   // Direct annual month/day windows. JavaScript getMonth() is zero-based.
   for(const m of inspectionSource.matchAll(/\b([\w$]+)\.getMonth\(\)\s*===\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*>=\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*<=\s*(\d{1,2})/g)){
@@ -76,6 +83,19 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
   ].join('\n')};
 }
 if(typeof module!=='undefined')module.exports={inspectCreativeHtml};
+
+function inspectCsvCalendar(text){
+ const rows=[];let fields=[],field='',quoted=false;
+ for(let i=0;i<=text.length;i++){
+  const ch=text[i]??'\n';
+  if(ch==='"'){if(quoted&&text[i+1]==='"'){field+='"';i++;}else quoted=!quoted;}
+  else if(!quoted&&(ch===','||ch==='\n')){fields.push(field.replace(/\r$/,''));field='';if(ch==='\n'){rows.push(fields);fields=[];}}
+  else field+=ch;
+ }
+ if(quoted||rows[0]?.slice(0,4).join(',')!=='Year,Start Date,End Date,Promo')return [];
+ const valid=s=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(s||''))return false;const d=new Date(s+'T12:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===s;};
+ return rows.slice(1).filter(([year,start,end,label])=>valid(start)&&valid(end)&&start<=end&&start.slice(0,4)===year&&end.slice(0,4)===year&&label).map(([,start,end,label])=>({start,end,label}));
+}
 
 function inspectBannerCalendars(source){
  const ranges=[];

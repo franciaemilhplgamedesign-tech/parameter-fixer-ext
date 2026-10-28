@@ -77,22 +77,25 @@ async function scanHolidays(){
       ranges.push(...inspectCreativeHtml(await response.text(),0,year).ranges);
     }catch(error){readErrors.push(error.message);}
   }
+  // AppLovin keeps other iterations unloaded: inspect their same-origin HTML too.
+  const tabUrl=new URL(currentTab.url);
+  if(tabUrl.hostname==='playable.applovindemo.com'){
+    try{await chrome.scripting.executeScript({target:{tabId:currentTab.id},world:'MAIN',files:['preview-parameter-runtime.js','preview-parameter-autoload.js','applovin-frame-bridge.js']});}catch(error){readErrors.push('AppLovin access: '+error.message);}
+    const refs=[...tabUrl.searchParams].filter(([key])=>/^h(?:[1-9]\d*)?$/.test(key));
+    await Promise.all(refs.map(async([key,ref])=>{
+      try{const url=new URL(ref,'https://playable.applovindemo.com/phaser/');if(url.origin!==tabUrl.origin)return;
+        const response=await fetch(url.href,{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error('HTTP '+response.status);
+        ranges.push(...inspectCreativeHtml(await response.text(),0,year).ranges.map(r=>({...r,source:key})));
+      }catch(error){readErrors.push('Iteration '+key+': '+error.message);}
+    }));
+  }
+  if(tabUrl.hostname!=='playable.applovindemo.com'||!ranges.length){
   try{
     const frames=await chrome.scripting.executeScript({target:{tabId:currentTab.id,allFrames:true},func:()=>({url:location.href,html:document.documentElement.outerHTML})});
     ranges.push(...frames.flatMap(f=>inspectCreativeHtml(f.result?.html||'',0,year).ranges));
   }catch(error){readErrors.push(error.message);}
-  if(!ranges.length&&readErrors.length===2)throw new Error(readErrors.join(' '));
-  // AppLovin keeps other iterations unloaded: inspect their same-origin HTML too.
-  const tabUrl=new URL(currentTab.url);
-  if(tabUrl.hostname==='playable.applovindemo.com'){
-    const refs=[...tabUrl.searchParams].filter(([key])=>/^h(?:[1-9]\d*)?$/.test(key));
-    await Promise.all(refs.map(async([key,ref])=>{
-      try{const url=new URL(ref,'https://playable.applovindemo.com/phaser/');if(url.origin!==tabUrl.origin)return;
-        const response=await fetch(url.href,{signal:AbortSignal.timeout(12000)});if(!response.ok)return;
-        ranges.push(...inspectCreativeHtml(await response.text(),0,year).ranges.map(r=>({...r,source:key})));
-      }catch(_){}
-    }));
   }
+  if(!ranges.length&&readErrors.length)throw new Error(readErrors.join(' '));
   if(scanId!==holidayScanId)return;
   populateRangeDropdown(holidaySelect,ranges.sort((a,b)=>a.start.localeCompare(b.start)));
  }catch(error){if(scanId!==holidayScanId)return;populateRangeDropdown(holidaySelect,[]);statusEl.textContent='Could not detect holidays: '+error.message+' For local files, enable Allow access to file URLs in extension settings.';}
