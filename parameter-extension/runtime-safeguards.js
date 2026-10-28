@@ -15,7 +15,7 @@ function addRuntimeSafeguards(html,{network=false,webgl=true}={}){
   function show(canvas){if(!visible(canvas)||panel)return;
    panel=document.createElement('div');panel.setAttribute('role','alert');panel.style.cssText='position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;background:#161616;color:#fff;font:16px/1.5 system-ui,sans-serif';
    const text=document.createElement('p');text.textContent='The interactive content is unavailable on this device.';panel.appendChild(text);
-   const target=window.clickTag||window.clickTag1||window.clickthrough||window.clickThrough;
+   const target=window.clickTag;
    if(target&&window.mraid&&typeof window.mraid.open==='function'){
     const button=document.createElement('button');button.textContent='Learn more';button.style.cssText='padding:12px 24px;border:0;border-radius:8px;background:#fff;color:#161616;font:inherit;cursor:pointer';
     button.addEventListener('click',()=>{try{if(typeof mraid.getState!=='function'||mraid.getState()!=='loading')mraid.open(target);}catch(_){} });panel.appendChild(button);

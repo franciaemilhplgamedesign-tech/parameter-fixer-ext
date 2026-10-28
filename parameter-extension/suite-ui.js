@@ -62,26 +62,16 @@ async function readSuiteSource(){
  const response=await fetch(url.href,{cache:'no-store'});if(!response.ok&&response.status!==0)throw new Error('Could not read HTML: '+response.status);
  suiteSource.html=await response.text();suiteSource.name=decodeURIComponent(url.pathname.split('/').pop()||'creative.html');if(!/\.html?$/i.test(suiteSource.name))suiteSource.name+='.html';suiteSource.url=tab.url;return suiteSource;
 }
-document.getElementById('runtime-fix').addEventListener('click',async()=>{
- const status=document.getElementById('mraid-status');try{
- const source=await readSuiteSource(),result=addRuntimeSafeguards(source.html,{network:document.getElementById('fix-network').checked,webgl:document.getElementById('fix-webgl').checked});
- if(!result.changes.length)throw new Error('No new safeguards needed or selected.');
- const report=checkMraidHtml(result.html,source.url,document.getElementById('creative-type').value);
- if(report.bytes>report.profile.limitBytes)throw new Error('Safeguarded copy exceeds the size limit. Compress the source first.');
- suiteDownload(new Blob([result.html],{type:'text/html'}),source.name.replace(/\.html?$/i,'')+'_safeguards.html');
- status.textContent='Safeguarded copy downloaded. '+report.errors+' errors and '+report.warnings+' warnings remain. API presence stays reported; test gameplay, offline behavior and WebGL failure. Worker/OffscreenCanvas rendering and remote assets require source changes.';
- }catch(error){status.textContent=error.message;}
- });
-document.getElementById('mraid-fix').addEventListener('click',async()=>{
- const status=document.getElementById('mraid-status');
+document.getElementById('fix-all').addEventListener('click',async()=>{
+ const button=document.getElementById('fix-all'),status=document.getElementById('mraid-status');button.disabled=true;
  try{
-  const source=await readSuiteSource();const entry={origHTML:source.html,name:source.name,extCallViolations:[],nonB64B122Violations:[],blockingViolations:[]};
-  runFix(entry);entry.fixedHTML=addRuntimeSafeguards(entry.fixedHTML,{network:document.getElementById('fix-network').checked,webgl:document.getElementById('fix-webgl').checked}).html;const report=checkMraidHtml(entry.fixedHTML,source.url,document.getElementById('creative-type').value);
-  if(report.findings.some(f=>f.id==='end-scene'&&f.status==='error'))throw new Error('Download blocked: MIP end-scene packaging is not Base64 compliant. Encode the end-scene source first; the MRAID patch engine does not convert it.');
-  if(entry.blockingViolations.length||report.bytes>report.profile.limitBytes)throw new Error('Download blocked: external/unbundled assets or the '+report.profile.label+' size limit remain. Use the compressor or fix these in source first.');
-  suiteDownload(new Blob([entry.fixedHTML],{type:'text/html'}),source.name.replace(/\.html?$/i,'')+'_mraid_fixed.html');
-  status.textContent='Fixed copy downloaded ('+entry.diffs.length+' proposed changes). Recheck and test before uploading; '+report.errors+' errors and '+report.warnings+' warnings remain. Original source unchanged.';
- }catch(error){status.textContent=error.message;}
+  const source=await readSuiteSource();
+  const result=await fixCreativePipeline(source.html,source.url,{creativeType:document.getElementById('creative-type').value,webgl:document.getElementById('fix-webgl').checked,network:document.getElementById('fix-network').checked,images:document.getElementById('compress-images').checked,quality:Number(document.getElementById('compress-quality').value)/100,maxEdge:Number(document.getElementById('compress-edge').value)},text=>{status.textContent=text;});
+  renderMraid(result.report);
+  if(result.report.errors||result.unresolved.length)throw new Error('Download blocked: '+result.report.errors+' checker error(s) and '+result.unresolved.length+' unresolved fix(es) remain after fixes and compression. Review the results below. '+result.unresolved.join(' '));
+  suiteDownload(new Blob([result.html],{type:'text/html'}),source.name.replace(/\.html?$/i,'')+'_fixed.html');
+  status.textContent='Fixed and compressed copy downloaded. '+formatCreativeSize(result.beforeBytes)+' → '+formatCreativeSize(result.afterBytes)+'. '+result.report.warnings+' warnings remain. '+result.unresolved.join(' ')+' Test the downloaded creative before upload.';
+ }catch(error){status.textContent=error.message;}finally{button.disabled=false;}
 });
 function addDateFix(html,name){
  const dateEnabled=document.getElementById('fix-enable-date').checked,languageEnabled=document.getElementById('fix-enable-language').checked;

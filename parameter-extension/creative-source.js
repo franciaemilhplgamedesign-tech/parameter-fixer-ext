@@ -2,7 +2,7 @@
 var CreativeSource=(()=>{
  const parser=typeof acorn!=='undefined'?acorn:typeof require==='function'?require('./vendor/acorn.js'):null;
  function analyze(html){
-  const nodes=[],scopes=new WeakMap(),documents=new Set(),failures=[],dataBlocks=new Map();
+  const nodes=[],scopes=new WeakMap(),parents=new WeakMap(),documents=new Set(),failures=[],dataBlocks=new Map();
   function scope(parent){return {parent,values:new Map()};}
   function bind(s,name,node){if(!s.values.has(name))s.values.set(name,node);else s.values.set(name,null);}
   function visit(node,s,parent=null){
@@ -10,7 +10,7 @@ var CreativeSource=(()=>{
    if(/Function/.test(node.type)||node.type==='ArrowFunctionExpression'){
     s=scope(s);for(const p of node.params||[])if(p.type==='Identifier')bind(s,p.name,null);
    }else if(node.type==='BlockStatement')s=scope(s);
-   scopes.set(node,s);nodes.push(node);
+   scopes.set(node,s);parents.set(node,parent);nodes.push(node);
    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier')bind(s,node.id.name,node.init);
    if(node.type==='AssignmentExpression'&&node.operator==='='&&node.left.type==='MemberExpression'&&node.left.object.name==='window'&&!node.left.computed)bind(s,'window.'+node.left.property.name,node.right);
    for(const [key,value] of Object.entries(node)){
@@ -114,7 +114,7 @@ var CreativeSource=(()=>{
    if(typeof v==='string'&&/^data:text\/html(?:;charset=[^;,]+)?;base64,/i.test(v))try{v=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(v.slice(v.indexOf(',')+1)),c=>c.charCodeAt(0)));}catch(_){v=null;}
    if(typeof v==='string'&&v.length<12000000&&/<(?:!doctype|html|body|head)\b/i.test(v))documents.add(v);
   }
-  return {nodes,resolve,origin,origins,property,documents:[...documents],failures};
+  return {nodes,parents,resolve,origin,origins,property,documents:[...documents],failures};
  }
  return {analyze};
 })();

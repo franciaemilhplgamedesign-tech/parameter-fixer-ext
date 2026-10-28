@@ -199,7 +199,7 @@ function findSnippetLine(text,snippet){const i=text.indexOf(snippet);return i<0?
             '/* MRAID v2.0 Compliant Click-Through Engine (AppLovin MIP) - injected by MRAID Fixer */',
             '(function(){',
             '  function getClickTarget(u){',
-            '    return u||window.clickTag||window.clickTag1||window.clickthrough||window.clickThrough||"";',
+            '    return window.clickTag||u||"";',
             '  }',
             '  window.handleMraidOpen=function(targetUrl){',
             '    var mraid=window.mraid;',
@@ -243,7 +243,7 @@ function findSnippetLine(text,snippet){const i=text.indexOf(snippet);return i<0?
           if (BARE_OPEN.test(html)) {
             html = html.replace(BARE_OPEN, function () {
               bareCount++;
-              return 'mraid.open(window.clickTag||window.clickTag1||window.clickthrough||window.clickThrough||"")';
+              return 'mraid.open(window.clickTag||"")';
             });
             diff('mraid.open(): Added missing URL parameter', bareCount + ' empty call(s)', 'mraid.open(clickTarget)');
           }
@@ -281,15 +281,7 @@ function findSnippetLine(text,snippet){const i=text.indexOf(snippet);return i<0?
 
         /* CHECK 6 - ClickTag Fallback Chain */
         (function () {
-          var FULL = /clickTag\s*\|\|\s*(?:window\.)?clickTag1\s*\|\|\s*(?:window\.)?(?:clickthrough|clickThrough)/i;
-          var ANY = /clickTag|clickthrough|clickThrough/i;
-          if (FULL.test(html)) {
-            results.push({ id: 'ct', title: 'ClickTag Fallback Chain', desc: 'Full chain: clickTag || clickTag1 || clickthrough || clickThrough confirmed.', status: 'pass' });
-          } else if (ANY.test(html)) {
-            results.push({ id: 'ct', title: 'ClickTag Fallback Chain', desc: 'Click target variables detected and normalized via handleMraidOpen chain.', status: 'pass' });
-          } else {
-            results.push({ id: 'ct', title: 'ClickTag Fallback Chain', desc: 'ClickTag fallback chain integrated into MRAID click handler.', status: 'pass' });
-          }
+          results.push({id:'ct',title:'Platform click target',desc:'Click handling uses the platform-injected window.clickTag. Reserved aliases must be renamed by the unified fixer.',status:'pass'});
         }());
 
         /* CHECK 7 - Media Viewability */

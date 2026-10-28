@@ -22,7 +22,7 @@ document.getElementById('open-checker').addEventListener('click',async()=>{const
   const deadline=Date.now()+60000;
   while((await chrome.tabs.get(tab.id)).status!=='complete'){if(Date.now()>deadline)throw new Error('ChatGPT page did not finish loading within 60 seconds. No message was sent.');await new Promise(resolve=>setTimeout(resolve,500));}
   await transferState('ChatGPT loaded. Locating composer and upload controls…');
-  let timeoutId;const timeout=new Promise((_,reject)=>{timeoutId=setTimeout(()=>reject(new Error('Transfer timed out. Inspect the checker draft before retrying; nothing was sent automatically.')),240000);});
+  let timeoutId;const timeout=new Promise((_,reject)=>{timeoutId=setTimeout(()=>reject(new Error('Transfer timed out. Inspect the checker draft before retrying; nothing was sent automatically.')),Math.max(240000,job.files.length*95000+150000));});
   let result;try{result=await Promise.race([chrome.scripting.executeScript({target:{tabId:tab.id},func:attachReviewInChecker,args:[job.files,job.prompt]}),timeout]);}finally{clearTimeout(timeoutId);}
   if(!result?.[0]?.result?.ready)throw new Error(result?.[0]?.result?.error||'Attachment readiness was not confirmed. Inspect the draft before retrying.');
   await transferState('Ready: '+result[0].result.count+' files attached and review prompt added. Click Send in the ecomm checker. Nothing was sent automatically.');

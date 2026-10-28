@@ -36,8 +36,18 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  const media=/<(?:video|audio)\b|new\s+(?:Audio|AudioContext)|createElement\s*\(\s*["'](?:video|audio)["']|data:(?:video|audio)\//i.test(html);
  const visibility=/isViewable\s*\(/.test(code)&&/["']viewableChange["']/.test(code);
  add('viewability','Media viewability',!media||visibility?'pass':'warning',!media?'No media detected.':visibility?'Viewability signals detected; verify media pauses/resumes correctly.':'Media found without both isViewable() and viewableChange.');
- const tags=['clickTag','clickTag1','clickthrough','clickThrough'].filter(key=>code.includes(key));
- add('clicktag','Click target fallback (project guideline)',tags.length===4?'pass':'warning',tags.length===4?'All four click target aliases detected.':'Verify the target expected by your ad network. Missing aliases are a project-guideline warning, not a universal MRAID failure.');
+ const reserved=new Set();
+ if(analysis)for(const n of analysis.nodes){
+  const parent=analysis.parents.get(n);
+  if(n.type==='Identifier'&&['clickTag1','clickthrough','clickThrough'].includes(n.name))reserved.add(n.name);
+  if(n.type==='Identifier'&&n.name==='clickTag'&&!(parent?.type==='MemberExpression'&&parent.object.name==='window'&&parent.property===n&&!parent.computed))reserved.add('bare/local clickTag');
+  if(n.type==='MemberExpression'&&n.object.name==='window'){
+   const name=analysis.property(n);
+   if(['clickTag1','clickthrough','clickThrough'].includes(name))reserved.add(name);
+   if(name==='clickTag'&&((parent?.type==='AssignmentExpression'&&parent.left===n)||(parent?.type==='UpdateExpression')))reserved.add('assignment to window.clickTag');
+  }
+ }else for(const name of ['clickTag1','clickthrough','clickThrough'])if(new RegExp('\\b'+name+'\\b').test(code))reserved.add(name);
+ add('clicktag','Click tracking (reserved names)',reserved.size?'error':'pass',reserved.size?'Reserved click identifier(s): '+[...reserved].join(', ')+'. Only the platform-injected window.clickTag may be read. Rename local aliases and preserve the injected target; reserved names can prevent tap redirects.':'No reserved click aliases or local clickTag overrides detected. Use only the platform-injected window.clickTag for tracking.');
  const touch=/["']touchend["']/.test(code)&&/["'](?:click|pointerup)["']/.test(code);
  add('tap','Touch/click duplication',touch&&!/(?:lastTap|debounc|preventDefault|timeStamp)/i.test(code)?'warning':'pass',touch?'Multiple input types detected; verify one CTA per tap.':'No overlapping touchend/click handling detected.');
  const remotes=[],dynamicAssets=[];
@@ -74,7 +84,7 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  if(profile.type==='unknown')add('creative-type','Creative type','warning','Could not determine MIP or SIP confidently. Select the correct type in Checker; until then the stricter 3.4 MB cap is used.');
  const encoded=/data:text\/html|DecompressionStream|srcDoc\s*:|\.srcdoc\s*=/i.test(html);
  add('embedded','Embedded document coverage',encoded?'warning':'pass',encoded?'Embedded/encoded HTML detected. This report covers the outer source; inspect each decoded end card separately.':'No supported embedded-document patterns detected.');
- const endScene=checkMipEndScenes(html,sourceUrl,analysis);
+ const endScene=checkMipEndScenes(html,sourceUrl,analysis,profile.type==='mip');
  if(endScene)add('end-scene', 'MIP end-scene Base64 packaging (project policy)',endScene.status,endScene.description,endScene.evidence);
  const errors=findings.filter(f=>f.status==='error').length,warnings=findings.filter(f=>f.status==='warning').length;
  return {sourceUrl,bytes,profile,checkedAt:Date.now(),findings,errors,warnings,issues:errors+warnings,scope:'Static source inspection, not MRAID certification. Minified aliases, comments and dynamically constructed code require manual review.'};
@@ -92,9 +102,9 @@ function compressedEndSceneWrapper(value){
  if(script[1].replace(payload[0],'atob("")').replace(/\s+/g,'')!==expected.replace(/\s+/g,''))return false;
  try{const raw=atob(payload[1]);return raw.length>=20&&raw.charCodeAt(0)===31&&raw.charCodeAt(1)===139&&raw.charCodeAt(2)===8;}catch(_){return false;}
 }
-function checkMipEndScenes(html,sourceUrl='',analysis=null){
+function checkMipEndScenes(html,sourceUrl='',analysis=null,selectedMip=false){
  const explicitEnd=/title\s*:\s*["']End Scene["']|class(?:Name)?\s*[:=]\s*["'][^"']*(?:endscene|end-scene|endcard|end-card)|kind["']?\s*:\s*["']endscene["']|\b(?:endscene|endScene|endCard)["']?\s*:\s*\{|__eccFrameDocument\(\w+,/i.test(html);
- const isMip=/_mip_/i.test(sourceUrl)||explicitEnd;
+ const isMip=selectedMip||/_mip_/i.test(sourceUrl)||explicitEnd;
  if(!isMip)return null;
  const candidates=[];
  if(analysis){
@@ -108,7 +118,8 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null){
     const id=analysis.resolve(props.get('htmlId'))?.value;
     if(typeof id==='string'){
      const asset=analysis.nodes.find(n=>n.type==='Property'&&(n.key.name??n.key.value)===id);
-     let result=asset&&analysis.resolve(asset.value);
+     const source=asset?.value?.type==='ObjectExpression'?asset.value.properties.find(p=>p.type==='Property'&&['src','html','htmlSrc'].includes(p.key.name??p.key.value)):null;
+     let result=source?analysis.origin(source.value):asset&&analysis.resolve(asset.value);
      if(result?.value&&typeof result.value==='object')result={value:result.value.src??result.value.html,packaged:false};
      candidates.push({label:'end-scene HTML asset '+id,index:0,value:result?.value||null,packaged:result?.packaged});
     }

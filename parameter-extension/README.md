@@ -195,3 +195,9 @@ One date/language pair is appended to the outer AppLovin preview URL. Fixer expo
 
 ### Version 2.3.1 — Review task name
 An optional remembered task field generates `check grammar and filename for task [task_name]` for upload drafts and review exports. The same prompt is previewed in Review; sending remains manual and the 20-file cap is unchanged.
+
+## Unified fixes and Review (v2.4.0)
+
+Use Fix all & compress HTML for MRAID patches, reserved click-name cleanup, supported asset/document Base64 packaging, optional WebGL/network safeguards, compression and a final check. Unresolved fixes or errors block download. Only the platform-injected window.clickTag is allowed; clickTag1, clickthrough, clickThrough and local clickTag overrides are errors.
+
+Review requires at least one screenshot; HTML remains auto-collected but optional. Image-only submissions use check grammar, with task/notes appended when provided. Images are ordered by capture time and HTML files follow them. The transfer stages each file in sequence and leaves sending to the user.

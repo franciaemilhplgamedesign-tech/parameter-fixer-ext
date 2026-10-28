@@ -1,11 +1,14 @@
 const REVIEW_MAX_FILES=20;
 const REVIEW_PROMPT='check grammar and filename';
-function buildReviewPrompt(taskName='',additionalNotes=''){
+let reviewHasSelectedHtml=true;
+function orderReviewItems(items){return [...items].sort((a,b)=>Number(a.kind==='html')-Number(b.kind==='html')||Number(a.metadata?.capturedAt??a.created??0)-Number(b.metadata?.capturedAt??b.created??0));}
+async function selectedReviewItems(){return orderReviewItems((await reviewStore('readonly',store=>store.getAll())).filter(i=>i.selected&&(i.kind==='html'||i.kind==='image')));}
+function buildReviewPrompt(taskName='',additionalNotes='',hasHtml=true){
  const name=String(taskName).trim();if(name.length>500)throw new Error('Task name must be 500 characters or fewer.');
  const notes=String(additionalNotes).trim();if(notes.length>4000)throw new Error('Additional notes must be 4000 characters or fewer.');
- return REVIEW_PROMPT+(name?' for task '+name:'')+(notes?'\nadditional notes: '+notes:'');
+ return (hasHtml?REVIEW_PROMPT:'check grammar')+(name?' for task '+name:'')+(notes?'\nadditional notes: '+notes:'');
 }
-function getReviewPrompt(){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'',typeof document==='undefined'?'':document.getElementById('review-additional-notes')?.value||'');}
+function getReviewPrompt(hasHtml=reviewHasSelectedHtml){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'',typeof document==='undefined'?'':document.getElementById('review-additional-notes')?.value||'',hasHtml);}
 
 const REVIEW_URL='https://chatgpt.com/g/g-p-6aba53db995c819187554fe66297a936-emil-francia-ecomm-checker/c/6aba5459-e97c-83ec-9e60-8c167d76c1ab';
 let reviewDbPromise,reviewUrls=[];
@@ -37,7 +40,7 @@ async function reviewPutFile(item){
 }
 async function saveScreenshot(blob,name,metadata){
  try{await collectLocalHtml(metadata.sourceUrl);}catch(error){document.getElementById('review-status').textContent=error.message;}
- await reviewPutFile({id:crypto.randomUUID(),kind:'image',name,blob,metadata,selected:true,created:Date.now()});
+ await reviewPutFile({id:crypto.randomUUID(),kind:'image',name,blob,metadata,selected:true,created:metadata.capturedAt||Date.now()});
  await renderReview();
 }
 function localHtmlSource(input){
@@ -64,7 +67,8 @@ async function collectCurrentLocalHtml(){
  try{if(typeof currentTab==='undefined'||!currentTab)return;const tab=await chrome.tabs.get(currentTab.id);await collectLocalHtml(tab.url);}catch(error){document.getElementById('review-status').textContent=error.message;}
 }
 async function renderReview(){
- const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.kind==='html'||i.kind==='image').sort((a,b)=>a.created-b.created);
+ const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.kind==='html'||i.kind==='image');
+ const ordered=orderReviewItems(items);items.splice(0,items.length,...ordered);reviewHasSelectedHtml=items.some(i=>i.selected&&i.kind==='html');updateReviewPromptPreview();
  const gallery=document.getElementById('review-gallery');gallery.replaceChildren();reviewUrls.forEach(URL.revokeObjectURL);reviewUrls=[];
  const fileList=document.createElement('div');fileList.className='review-files';
  const imageGrid=document.createElement('div');imageGrid.className='review-images';
@@ -72,7 +76,7 @@ async function renderReview(){
  for(const item of items){
   const row=document.createElement('div');row.className=item.kind==='image'?'review-tile':'review-file';row.dataset.selected=String(!!item.selected);
   const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=item.selected;checkbox.setAttribute('aria-label','Select '+item.name);
-  checkbox.addEventListener('change',async()=>{item.selected=checkbox.checked;row.dataset.selected=String(item.selected);await reviewStore('readwrite',store=>store.put(item));});
+  checkbox.addEventListener('change',async()=>{item.selected=checkbox.checked;row.dataset.selected=String(item.selected);await reviewStore('readwrite',store=>store.put(item));await renderReview();});
   row.appendChild(checkbox);
   if(item.kind==='image'){
    const thumb=document.createElement('button');thumb.className='review-thumbnail';thumb.type='button';thumb.setAttribute('aria-label','Enlarge screenshot');thumb.title='View screenshot';
@@ -94,10 +98,11 @@ async function removeReviewItems(all){
  else{const items=await reviewStore('readonly',store=>store.getAll());for(const item of items.filter(i=>i.selected))await reviewStore('readwrite',store=>store.delete(item.id));}
  await renderReview();
 }
-async function createReviewPackage(prompt=getReviewPrompt()){
- const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.selected&&(i.kind==='html'||i.kind==='image'));
+async function createReviewPackage(prompt,providedItems){
+ const items=providedItems||await selectedReviewItems();
+ prompt??=getReviewPrompt(items.some(i=>i.kind==='html'));
  if(items.length>REVIEW_MAX_FILES)throw new Error('Select no more than 20 files total (HTML + images).');
- if(!items.some(i=>i.kind==='html')||!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot and add/select its original HTML file.');
+ if(!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot. HTML files are optional.');
  const entries=[],names=new Set();
  for(const item of items){
   let name=item.name.replace(/[\\/]/g,'_'),base=name,index=2;
@@ -131,7 +136,7 @@ for(const [id,action] of [['review-delete',()=>removeReviewItems(false)],['revie
 }
 async function exportReview(openChecker){
  try{
-  const prompt=getReviewPrompt(),blob=await createReviewPackage(prompt);downloadReview(blob);
+  const items=await selectedReviewItems(),prompt=getReviewPrompt(items.some(i=>i.kind==='html')),blob=await createReviewPackage(prompt,items);downloadReview(blob);
   let copied=false;try{await navigator.clipboard.writeText(prompt);copied=true;}catch(_){}
   reviewStatus.textContent='Package downloaded. Extract the ZIP, attach the HTML and PNG files in the checker, '+(copied?'paste the copied prompt':'type: '+prompt)+', then send. Files have not been uploaded automatically.';
   if(openChecker)await chrome.tabs.create({url:REVIEW_URL});

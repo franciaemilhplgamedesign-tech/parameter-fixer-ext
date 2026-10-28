@@ -39,16 +39,4 @@ async function compressCreativeHtml(html,options={},progress=()=>{}){
 if(typeof module!=='undefined')module.exports={compressCreativeHtml,embeddedImageIsAnimated};
 if(typeof document!=='undefined'){
  document.getElementById('compress-images').addEventListener('change',event=>{document.getElementById('compress-image-options').hidden=!event.target.checked;});
- document.getElementById('compress-current').addEventListener('click',async()=>{
-  const button=document.getElementById('compress-current'),status=document.getElementById('compress-status'),download=document.getElementById('compress-download');
-  button.disabled=true;download.hidden=true;const oldUrl=download.dataset.objectUrl;if(oldUrl)URL.revokeObjectURL(oldUrl);
-  try{
-   const source=await readSuiteSource(),mode=document.getElementById('creative-type').value;
-   const result=await compressCreativeHtml(source.html,{images:document.getElementById('compress-images').checked,quality:Number(document.getElementById('compress-quality').value)/100,maxEdge:Number(document.getElementById('compress-edge').value)},text=>{status.textContent=text;});
-   const report=checkMraidHtml(result.html,source.url,mode),percent=result.beforeBytes?(result.savedBytes/result.beforeBytes*100).toFixed(1):'0';
-   status.textContent=result.beforeBytes.toLocaleString()+' → '+result.afterBytes.toLocaleString()+' bytes ('+percent+'% smaller).\n'+(report.bytes<=report.profile.limitBytes?'Within ':'Still exceeds ')+report.profile.label+' limit.\n'+result.images.optimized+' images optimized; '+result.images.skipped+' skipped. Videos, audio, fonts and encoded end scenes were not transcoded.\nOutput check: '+report.errors+' errors · '+report.warnings+' warnings. Test playback, interactions and appearance before upload.';
-   const url=URL.createObjectURL(new Blob([result.html],{type:'text/html'}));download.href=url;download.dataset.objectUrl=url;download.download=source.name.replace(/\.html?$/i,'')+'_compressed.html';download.hidden=false;
-   download.textContent=report.bytes<=report.profile.limitBytes?'Download compressed copy':'Download copy — still over limit';
-  }catch(error){status.textContent='Compression stopped: '+error.message+'. The original file is unchanged.';}finally{button.disabled=false;}
- });
 }

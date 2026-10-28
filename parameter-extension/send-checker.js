@@ -2,6 +2,7 @@
 async function attachReviewInChecker(files,prompt){
  try{
  if(!Array.isArray(files)||files.length>20)throw new Error('Review is limited to 20 files total (HTML + images).');
+ files=[...files].sort((a,b)=>Number(!a.type.startsWith('image/'))-Number(!b.type.startsWith('image/')));
  function progress(text){try{chrome.runtime.sendMessage({type:'review-progress',text}).catch(()=>{});}catch(_){} }
  progress('Waiting for the ChatGPT composer. Sign in if requested…');
  const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -11,7 +12,7 @@ async function attachReviewInChecker(files,prompt){
  const composer=await waitFor(()=>[...document.querySelectorAll('#prompt-textarea,[contenteditable="true"][role="textbox"],.ProseMirror[contenteditable="true"],[contenteditable="true"][data-lexical-editor],textarea[placeholder],div[contenteditable="true"][data-placeholder]')].find(el=>el.getClientRects().length&&!el.disabled&&el.getAttribute('aria-hidden')!=='true'),60000,'visible message composer');
  const region=()=>composer.closest('form,[data-type="unified-composer"],[data-testid="composer"]')||composer.parentElement?.parentElement?.parentElement;
  if((composer.innerText||composer.value||'').trim())throw new Error('The checker already has an unsent draft. Clear or send that draft before retrying.');
- function uploadInput(){return [...document.querySelectorAll('input[type="file"]')].filter(el=>!el.disabled).sort((a,b)=>Number(!!b.multiple)-Number(!!a.multiple)).find(el=>!el.accept||/html|application|text|\*\/\*/i.test(el.accept));}
+ function uploadInput(){return [...document.querySelectorAll('input[type="file"]')].filter(el=>!el.disabled).sort((a,b)=>Number(!!b.multiple)-Number(!!a.multiple)).find(el=>!el.accept||/html|application|text|\*\/\*/i.test(el.accept)||(files.every(f=>f.type.startsWith('image/'))&&/image/i.test(el.accept)));}
  progress('Locating file upload controls…');
  let input=uploadInput();
  if(!input){
@@ -19,24 +20,27 @@ async function attachReviewInChecker(files,prompt){
   if(add)add.click();
   try{input=await waitFor(uploadInput,3000,'file upload input');}catch(_){input=null;}
  }
- const transfer=new DataTransfer();
- for(const file of files){const raw=atob(file.base64),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);transfer.items.add(new File([bytes],file.name,{type:file.type}));}
+ const staged=[];
  const beforeImages=new Set([...region().querySelectorAll('img')].map(img=>img.src));
- if(input && (input.multiple||files.length===1)){
-  input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true,composed:true}));
- }else{
-  progress('No compatible file input found. Attaching through ChatGPT’s paste handler…');
-  composer.focus();composer.dispatchEvent(new ClipboardEvent('paste',{clipboardData:transfer,bubbles:true,cancelable:true,composed:true}));
- }
- progress('Files handed to ChatGPT. Waiting for '+files.length+' attachments to appear…');
  function attachmentSeen(file){
   const root=region();if(!root)return false;
   const text=root.innerText||'';
   if(text.includes(file.name))return true;
   if([...root.querySelectorAll('[title],[aria-label],img[alt]')].some(el=>[el.getAttribute('title'),el.getAttribute('aria-label'),el.getAttribute('alt')].some(value=>value?.includes(file.name))))return true;
   // ChatGPT often shows image thumbnails without exposing PNG filenames.
-  if(file.type.startsWith('image/'))return [...root.querySelectorAll('img')].filter(img=>!beforeImages.has(img.src)&&img.complete&&img.naturalWidth>0).length>=files.filter(f=>f.type.startsWith('image/')).length;
+  if(file.type.startsWith('image/'))return [...root.querySelectorAll('img')].filter(img=>!beforeImages.has(img.src)&&img.complete&&img.naturalWidth>0).length>=staged.filter(f=>f.type.startsWith('image/')).length;
   return false;
+ }
+ // Stage one attachment at a time so asynchronous uploads cannot reorder them.
+ for(const file of files){
+  progress('Uploading attachment '+(staged.length+1)+' / '+files.length+'…');
+  const transfer=new DataTransfer(),raw=atob(file.base64),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  transfer.items.add(new File([bytes],file.name,{type:file.type}));staged.push(file);
+  input=uploadInput();
+  if(input){input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true,composed:true}));}
+  else{composer.focus();composer.dispatchEvent(new ClipboardEvent('paste',{clipboardData:transfer,bubbles:true,cancelable:true,composed:true}));}
+  let stagedSince=null;
+  await waitFor(()=>{if(!staged.every(attachmentSeen)||attachmentUploading()){stagedSince=null;return false;}if(stagedSince===null)stagedSince=Date.now();return Date.now()-stagedSince>=600;},90000,'attachment '+staged.length+' upload');
  }
  // Verify files are staged, then prepare a draft for the user to send.
  try{await waitFor(()=>files.every(attachmentSeen),90000,'selected attachments');}catch(_){throw new Error('Could not verify every attachment. Inspect the checker draft before retrying to avoid duplicates.');}
@@ -73,10 +77,10 @@ async function attachReviewInChecker(files,prompt){
  }catch(error){return {ready:false,sent:false,error:error.message};}
 }
 async function sendSelectedReview(){
- const items=(await reviewStore('readonly',store=>store.getAll())).filter(item=>item.selected&&(item.kind==='html'||item.kind==='image'));
+ const items=await selectedReviewItems();
  if(items.length>20)throw new Error('Select no more than 20 files total (HTML + images).');
- if(!items.some(i=>i.kind==='html')||!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot and its collected HTML.');
- const prompt=getReviewPrompt();
+ if(!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot. HTML files are optional.');
+ const prompt=getReviewPrompt(items.some(i=>i.kind==='html'));
  const files=[];
  for(const item of items){
   const bytes=new Uint8Array(await item.blob.arrayBuffer());let raw='';

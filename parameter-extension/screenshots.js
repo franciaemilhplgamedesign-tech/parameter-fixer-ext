@@ -40,6 +40,7 @@ if(typeof document!=='undefined'){
    }});
    const [active]=await chrome.tabs.query({active:true,windowId:tab.windowId});
    if(active?.id!==tab.id)throw new Error('The active tab changed. Return to the linked preview and try again.');
+   const capturedAt=Date.now();
    const data=await chrome.tabs.captureVisibleTab(tab.windowId,{format:'png'});
    const [captured]=await chrome.tabs.query({active:true,windowId:tab.windowId});
    if(captured?.id!==tab.id)throw new Error('The active tab changed during capture. Screenshot discarded; return to the preview and try again.');
@@ -54,7 +55,7 @@ if(typeof document!=='undefined'){
    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
    if(!blob)throw new Error('Could not encode the screenshot.');
    const name='creative-'+(document.getElementById('date').value||'real-date')+'-'+g.width+'x'+g.height+'-'+Date.now()+'.png';
-   await saveScreenshot(blob,name,{sourceUrl:tab.url,date:document.getElementById('date').value,language:selectedLanguage(),width:g.width,height:g.height});
+   await saveScreenshot(blob,name,{sourceUrl:tab.url,capturedAt,date:document.getElementById('date').value,language:selectedLanguage(),width:g.width,height:g.height});
    output.textContent='Captured '+g.width+' × '+g.height+' px. Added to the saved review gallery.';
   }catch(error){output.textContent=error.message;}finally{button.disabled=false;}
  });
