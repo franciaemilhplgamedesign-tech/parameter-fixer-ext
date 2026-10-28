@@ -1,0 +1,8 @@
+const assert=require('assert');const source=require('../parameter-extension/creative-source'),{checkMraidHtml}=require('../parameter-extension/mraid-checks'),{inspectCreativeHtml}=require('../parameter-extension/inspect');
+const wrap=code=>'<html><head></head><body><script>'+code+'</script></body></html>';
+for(const code of ['const data={};const text=`${data+""}`;','const data={};const key={};const text=`${data[key]}`;','const encoding={};const text=new TextDecoder(encoding).decode(Uint8Array.from(atob("QUJD"),c=>c.charCodeAt(0)));','const f={title:"End Scene",srcDoc:{}};','const text=`${1n+2}`;']){assert.doesNotThrow(()=>source.analyze(wrap(code)));assert.doesNotThrow(()=>checkMraidHtml(wrap(code),'file:///test_mip_case.html'));assert.doesNotThrow(()=>inspectCreativeHtml(wrap(code)));}
+let analysis=source.analyze(wrap('const data={};const text=`${data+""}`;'));assert.equal(analysis.resolve(analysis.nodes.find(n=>n.type==='BinaryExpression')),null);
+analysis=source.analyze(wrap('const data={};const key={};const text=`${data[key]}`;'));assert.equal(analysis.resolve(analysis.nodes.find(n=>n.type==='MemberExpression')),null);
+analysis=source.analyze(wrap('const value="A"+2;'));assert.equal(analysis.resolve(analysis.nodes.find(n=>n.type==='BinaryExpression')).value,'A2');
+const unknown=checkMraidHtml(wrap('const f={title:"End Scene",srcDoc:{}};'),'file:///test_mip_case.html').findings.find(f=>f.id==='end-scene');assert.equal(unknown.status,'warning');assert(unknown.description.includes('cannot be verified'));
+console.log('Passed object/string additions, object keys, encoding objects, unknown end-scene objects, mixed BigInt arithmetic and normal primitive resolution.');

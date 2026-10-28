@@ -174,10 +174,10 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null,selectedMip=false){
   return {status:'warning',description:'MIP end-scene loader detected, but its source cannot be resolved statically. Verify the end-scene file is Base64 packaged; a decoder/helper name alone is not proof.',evidence:''};
  }
  const problems=[],unknown=[],passed=[];
- const uniqueCandidates=[...new Map(candidates.map(item=>[item.index+'|'+item.packaged+'|'+(item.value||item.label),item])).values()];
+ const uniqueCandidates=[...new Map(candidates.map(item=>[item.index+'|'+item.packaged+'|'+(typeof item.value==='string'?item.value:item.label),item])).values()];
  for(const item of uniqueCandidates){
   const value=item.value;
-  if(!value){unknown.push(item);continue;}
+  if(typeof value!=='string'||!value){unknown.push(item);continue;}
   if(item.packaged){passed.push(item);continue;}
   if(compressedEndSceneWrapper(value)){passed.push({...item,compressed:true});continue;}
   if(/^data:(?:text\/html|video\/[\w.+-]+|image\/[\w.+-]+|audio\/[\w.+-]+)(?:;charset=[\w-]+)?;base64,[A-Za-z0-9+/]+={0,2}$/i.test(value)&&value.slice(value.indexOf(',')+1).length%4===0){passed.push(item);continue;}

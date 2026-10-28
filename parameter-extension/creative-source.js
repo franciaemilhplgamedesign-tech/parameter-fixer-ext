@@ -42,10 +42,14 @@ var CreativeSource=(()=>{
    if(n.type==='TemplateLiteral'){
     let value='';for(let i=0;i<n.quasis.length;i++){value+=n.quasis[i].value.cooked||'';if(i<n.expressions.length){const v=next(n.expressions[i]);if(!v||!['string','number'].includes(typeof v.value))return null;value+=v.value;}}return {value,packaged:false};
    }
-   if(n.type==='BinaryExpression'&&n.operator==='+'){const a=next(n.left),b=next(n.right);return a&&b?{value:a.value+b.value,packaged:false}:null;}
+   if(n.type==='BinaryExpression'&&n.operator==='+'){
+    const a=next(n.left),b=next(n.right),primitive=v=>v===null||['string','number','boolean'].includes(typeof v);
+    return a&&b&&primitive(a.value)&&primitive(b.value)?{value:a.value+b.value,packaged:false}:null;
+   }
    if(n.type==='MemberExpression'){
     if(n.object.name==='window'&&!n.computed)return next(lookup(n,'window.'+property(n)));
     const o=next(n.object),p=n.computed?next(n.property)?.value:property(n);
+    if(!['string','number'].includes(typeof p))return null;
     return o&&o.value!=null&&Object.hasOwn(Object(o.value),p)?{value:o.value[p],packaged:o.packaged}:null;
    }
    if(n.type==='ArrayExpression'){const values=n.elements.map(next);return values.every(Boolean)?{value:values.map(v=>v.value),packaged:false}:null;}
@@ -69,7 +73,8 @@ var CreativeSource=(()=>{
      const from=n.arguments[0],atobCall=from?.arguments?.[0],mapper=from?.arguments?.[1];
      const body=mapper?.type==='ArrowFunctionExpression'?mapper.body:null;
      const byteMapper=body?.type==='CallExpression'&&property(body.callee)==='charCodeAt'&&body.callee.object.name===mapper.params[0]?.name&&body.arguments.length===1&&body.arguments[0].value===0;
-     const utf8=!c.object.arguments.length||/^utf-?8$/i.test(next(c.object.arguments[0])?.value||'');
+     const encoding=next(c.object.arguments[0])?.value;
+     const utf8=!c.object.arguments.length||(typeof encoding==='string'&&/^utf-?8$/i.test(encoding));
      if(utf8&&byteMapper&&from?.callee?.object?.name==='Uint8Array'&&property(from.callee)==='from'&&atobCall?.callee?.name==='atob'){
       const encoded=next(atobCall.arguments[0]);if(typeof encoded?.value==='string'&&/^[A-Za-z0-9+/]*={0,2}$/.test(encoded.value)&&encoded.value.length%4===0){
        try{const raw=atob(encoded.value);return {value:new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(raw,c=>c.charCodeAt(0))),packaged:true};}catch(_){}
