@@ -81,6 +81,17 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
 }
 if(typeof module!=='undefined')module.exports={isLocalCreativeUrl,checkMraidHtml,creativeSizeProfile,formatCreativeSize};
 
+function compressedEndSceneWrapper(value){
+ if(typeof value!=='string')return false;
+ const script=value.match(/<script>([\s\S]*?)<\/script>/i);if(!script)return false;
+ // Only the known decompression scaffold is allowed, with no rendered HTML.
+ const outside=value.replace(script[0],'').replace(/<!doctype\s+html>/ig,'').replace(/<meta\s+charset=["']utf-8["']\s*\/?\s*>/ig,'').replace(/<meta\s+name=["']ecc-compressed-end-card["']\s+content=["']base64-gzip["']\s*\/?\s*>/ig,'').trim();
+ if(outside)return false;
+ const payload=script[1].match(/atob\("([A-Za-z0-9+/]+={0,2})"\)/);if(!payload||payload[1].length%4)return false;
+ const expected='(async function(){try{var bytes=Uint8Array.from(atob(""),function(c){return c.charCodeAt(0)});var stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));var html=await new Response(stream).text();document.open();document.write(html);document.close()}catch(error){var target=document.body||document.documentElement;target.textContent="Unable to load the compressed End Card.";console.error(error)}})();';
+ if(script[1].replace(payload[0],'atob("")').replace(/\s+/g,'')!==expected.replace(/\s+/g,''))return false;
+ try{const raw=atob(payload[1]);return raw.length>=20&&raw.charCodeAt(0)===31&&raw.charCodeAt(1)===139&&raw.charCodeAt(2)===8;}catch(_){return false;}
+}
 function checkMipEndScenes(html,sourceUrl='',analysis=null){
  const explicitEnd=/title\s*:\s*["']End Scene["']|class(?:Name)?\s*[:=]\s*["'][^"']*(?:endscene|end-scene|endcard|end-card)|kind["']?\s*:\s*["']endscene["']|\b(?:endscene|endScene|endCard)["']?\s*:\s*\{|__eccFrameDocument\(\w+,/i.test(html);
  const isMip=/_mip_/i.test(sourceUrl)||explicitEnd;
@@ -133,7 +144,7 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null){
   if(!explicitEnd||candidates.some(c=>c.label==='end-scene srcDoc'))continue;
   const item=literalAt(m.index+m[0].length-1);candidates.push({label:'end-scene srcdoc attribute',...item});
  }
- if(explicitEnd&&!candidates.some(c=>c.label.startsWith('end-scene HTML asset')))for(const m of html.matchAll(/\.srcdoc\s*=\s*/g))take(html.slice(m.index+m[0].length,m.index+m[0].length+400),m.index+m[0].length,'end-scene srcdoc assignment');
+ if(explicitEnd&&!candidates.some(c=>c.label==='end-scene srcDoc'||c.label.startsWith('end-scene HTML asset')))for(const m of html.matchAll(/\.srcdoc\s*=\s*/g))take(html.slice(m.index+m[0].length,m.index+m[0].length+400),m.index+m[0].length,'end-scene srcdoc assignment');
  for(const block of html.matchAll(/(?:endscene|endScene|endCard)["']?\s*:\s*\{[^{}]*\}/g)){
   for(const field of block[0].matchAll(/\b(?:html|src|url|htmlSrc|videoSrc)["']?\s*:\s*/g)){
    const index=block.index+field.index+field[0].length;take(html.slice(index,index+400),index,'configured end-scene source');
@@ -157,6 +168,7 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null){
   const value=item.value;
   if(!value){unknown.push(item);continue;}
   if(item.packaged){passed.push(item);continue;}
+  if(compressedEndSceneWrapper(value)){passed.push({...item,compressed:true});continue;}
   if(/^data:(?:text\/html|video\/[\w.+-]+|image\/[\w.+-]+|audio\/[\w.+-]+)(?:;charset=[\w-]+)?;base64,[A-Za-z0-9+/]+={0,2}$/i.test(value)&&value.slice(value.indexOf(',')+1).length%4===0){passed.push(item);continue;}
   if(/<\s*(?:!doctype\s+html|html|head|body|script|div|video|iframe)\b/i.test(value))problems.push({...item,reason:'raw HTML source'});
   else if(/^data:/i.test(value))problems.push({...item,reason:'not a valid Base64 media/HTML data URL'});
@@ -165,5 +177,5 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null){
  }
  if(problems.length)return {status:'error',description:problems.length+' MIP end-scene source(s) violate the Base64-only project policy: '+problems.map(p=>p.label+' ('+p.reason+')').join('; ')+'. Encode the end-scene file as Base64; Base64 assets inside raw HTML do not make the HTML container compliant.',evidence:html.slice(problems[0].index,problems[0].index+180)};
  if(unknown.length)return {status:'warning',description:passed.length+' Base64 source(s) verified; '+unknown.length+' dynamic/blob source(s) cannot be verified. Resolve their payloads before approval.',evidence:''};
- return {status:'pass',description:passed.length+' MIP end-scene media/HTML data URL(s) verified as Base64 packaged. Decoded content still requires its own runtime/MRAID checks.',evidence:''};
+ return {status:'pass',description:passed.length+' MIP end-scene source(s) verified as Base64 packaged'+(passed.some(item=>item.compressed)?', including a recognized Base64-gzip decompression wrapper':'')+'. Decoded content and successful decompression still require runtime/MRAID checks.',evidence:''};
 }
