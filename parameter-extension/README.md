@@ -200,4 +200,8 @@ An optional remembered task field generates `check grammar and filename for task
 
 Use Fix all & compress HTML for MRAID patches, reserved click-name cleanup, supported asset/document Base64 packaging, optional WebGL/network safeguards, compression and a final check. Unresolved fixes or errors block download. Only the platform-injected window.clickTag is allowed; clickTag1, clickthrough, clickThrough and local clickTag overrides are errors.
 
-Review requires at least one screenshot; HTML remains auto-collected but optional. Image-only submissions use check grammar, with task/notes appended when provided. Images are ordered by capture time and HTML files follow them. The transfer stages each file in sequence and leaves sending to the user.
+Review requires at least one screenshot; HTML is optional and added only with Add HTML. Image-only submissions use check grammar, with task/notes appended when provided. Images are ordered by capture time and HTML files follow them. The transfer stages each file in sequence and leaves sending to the user.
+
+## Manual Review HTML (v2.4.2)
+
+Review no longer adds HTML when opening the tools or capturing screenshots. Click the Add HTML file icon beside the selection controls to add the linked local HTML file. File URL permission is still required. Re-adding the same source selects its existing item instead of duplicating it.

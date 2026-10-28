@@ -19,7 +19,7 @@ AppLovin links now use `...Preview/?h=first.html&h2=second.html&date=2026-12-01&
 - Parameters: date/language testing across AppLovin iterations, local HTML and localhost, detected holiday ranges, Previous/Next and auto-refresh.
 - Parameter Fixer: supported date/language patches for current/bulk HTML.
 - Checker: MRAID/source/network/WebGL/end-scene checks, selected MIP 5 MB / SIP 3.4 MB caps, proposed fixes and compression.
-- Review: screenshots with optional auto-collected HTML, max 20 files total; optional remembered task name and additional notes, export or upload in capture order (HTML last), with a task-aware grammar/filename prompt or grammar-only prompt when no HTML is selected, for manual sending. Successful transfer closes its extra popup.
+- Review: screenshots with optional HTML added with Add HTML, max 20 files total; optional remembered task name and additional notes, export or upload in capture order (HTML last), with a task-aware grammar/filename prompt or grammar-only prompt when no HTML is selected, for manual sending. Successful transfer closes its extra popup.
 
 Static checks are review aids, not certification. Test fixed creatives in the target container. Live ChatGPT behavior depends on its current controls and needs browser validation.
 
@@ -27,7 +27,7 @@ Static checks are review aids, not certification. Test fixed creatives in the ta
 
 Run scripts/build-release.ps1 on Windows to compile the helper and generate the extension ZIP, setup ZIP and SHA-256 assets. Upload to a draft GitHub release first; publish only when all assets exist. The native updater requires EC-FIX-IT-extension-vVERSION.zip plus .zip.sha256 for every future release. Checksum verification uses the trusted repository release; code-signing is not provided.
 
-[Latest release notes](RELEASE-NOTES-v2.4.1.md)
+[Latest release notes](RELEASE-NOTES-v2.4.2.md)
 
 Created By: Emil Son Francia | October 2026
 
@@ -36,3 +36,5 @@ The toolbar icon opens a persistent browser side panel. It stays open while you 
 Screenshot capture requests optional browser capture access on its first click. This is needed when a persistent side panel or detached window no longer has temporary activeTab access. Grant the browser prompt once; local files also require Allow access to file URLs.
 
 Fix all & compress HTML combines MRAID fixes, reserved click-name cleanup, supported Base64 asset/end-scene packaging, optional safeguards, compression and final checks. Errors or unresolved fixes block the download.
+
+Add HTML is a file icon beside Review selection controls. It collects the linked local HTML only on click; opening tools and capturing screenshots do not add files automatically.

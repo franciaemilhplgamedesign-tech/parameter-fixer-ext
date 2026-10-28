@@ -39,7 +39,6 @@ async function reviewPutFile(item){
  });
 }
 async function saveScreenshot(blob,name,metadata){
- try{await collectLocalHtml(metadata.sourceUrl);}catch(error){document.getElementById('review-status').textContent=error.message;}
  await reviewPutFile({id:crypto.randomUUID(),kind:'image',name,blob,metadata,selected:true,created:metadata.capturedAt||Date.now()});
  await renderReview();
 }
@@ -58,14 +57,17 @@ async function collectLocalHtml(input){
  if(!response.ok && response.status!==0)throw new Error('Could not read local HTML: '+response.status);
  const blob=await response.blob(),id='html:'+source.url;
  const previous=await reviewStore('readonly',store=>store.get(id));
- await reviewPutFile({id,kind:'html',name:source.name,blob,selected:previous?previous.selected:true,created:previous?.created||Date.now(),metadata:{sourceUrl:source.url,previewUrl:input}});
+ await reviewPutFile({id,kind:'html',name:source.name,blob,selected:true,created:previous?.created||Date.now(),metadata:{sourceUrl:source.url,previewUrl:input}});
  await renderReview();
- document.getElementById('review-source').textContent='Original HTML collected automatically.';
+ document.getElementById('review-source').textContent='Original HTML added from the linked preview.';
  return true;
 }
 async function collectCurrentLocalHtml(){
- try{if(typeof currentTab==='undefined'||!currentTab)return;const tab=await chrome.tabs.get(currentTab.id);await collectLocalHtml(tab.url);}catch(error){document.getElementById('review-status').textContent=error.message;}
+ if(typeof currentTab==='undefined'||!currentTab)throw new Error('Open a local HTML preview first.');
+ const tab=await chrome.tabs.get(currentTab.id);
+ if(!await collectLocalHtml(tab.url))throw new Error('Open a local HTML file preview to add its original HTML.');
 }
+
 async function renderReview(){
  const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.kind==='html'||i.kind==='image');
  const ordered=orderReviewItems(items);items.splice(0,items.length,...ordered);reviewHasSelectedHtml=items.some(i=>i.selected&&i.kind==='html');updateReviewPromptPreview();
@@ -129,8 +131,11 @@ chrome.storage.local.get('reviewAdditionalNotes').then(saved=>{if(!additionalNot
 updateReviewPromptPreview();
 chrome.storage.local.get('reviewSendStatus').then(saved=>{if(saved.reviewSendStatus)reviewStatus.textContent=saved.reviewSendStatus;});
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.reviewSendStatus)reviewStatus.textContent=changes.reviewSendStatus.newValue;});
-window.addEventListener('preview-target-ready',collectCurrentLocalHtml);
-collectCurrentLocalHtml();
+document.getElementById('review-add-html').addEventListener('click',async()=>{
+ const button=document.getElementById('review-add-html');button.disabled=true;
+ try{await collectCurrentLocalHtml();reviewStatus.textContent='HTML added to Review.';}
+ catch(error){reviewStatus.textContent=error.message;}finally{button.disabled=false;}
+});
 for(const [id,action] of [['review-delete',()=>removeReviewItems(false)],['review-clear',()=>removeReviewItems(true)],['review-select',async()=>{const items=await reviewStore('readonly',store=>store.getAll());for(const item of items){item.selected=true;await reviewStore('readwrite',store=>store.put(item));}await renderReview();}],['review-none',async()=>{const items=await reviewStore('readonly',store=>store.getAll());for(const item of items){item.selected=false;await reviewStore('readwrite',store=>store.put(item));}await renderReview();}]]){
  document.getElementById(id).addEventListener('click',()=>action().catch(error=>{reviewStatus.textContent=error.message;}));
 }
