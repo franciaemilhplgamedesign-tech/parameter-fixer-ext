@@ -46,7 +46,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
    if(analyzer){
     const analysis=analyzer.analyze(html);
-    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear));
+    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear));
     for(const node of analysis.nodes){
      const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
      if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
@@ -209,6 +209,44 @@ function inspectNestedAnnualCalendar(analysis,previewYear){
      else{const range={start:iso,end:iso,label:'Annual promo',recurring:true};ranges.push(range);active={branch,range};}
     }else active=null;
    }
+  }
+ }
+ return ranges;
+}
+
+// A month guard followed by a day-based ternary promo selector.
+function inspectGuardedAnnualCalendar(analysis,year){
+ const ranges=[];
+ const text=node=>node?.type==='Literal'&&typeof node.value==='string'?node.value:node?.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
+ const method=(node,name)=>node?.type==='CallExpression'&&!node.arguments.length&&node.callee.type==='MemberExpression'&&!node.callee.computed&&node.callee.property.name===name&&node.callee.object.type==='Identifier'?node.callee.object.name:null;
+ for(const fn of analysis.nodes){
+  if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||fn.body?.type!=='BlockStatement'||fn.body.body.length!==3)continue;
+  const [guard,declaration,returned]=fn.body.body,test=guard.test;
+  if(guard.type!=='IfStatement'||guard.alternate||!['!==','!='].includes(test?.operator)||test.right?.type!=='Literal'||!Number.isInteger(test.right.value)||test.right.value<0||test.right.value>11)continue;
+  const receiver=method(test.left,'getMonth'),exit=guard.consequent.type==='BlockStatement'?guard.consequent.body: [guard.consequent];
+  if(!receiver||exit.length!==1||exit[0].type!=='ReturnStatement')continue;
+  const fallback=text(exit[0].argument);
+  if(fallback===null||declaration.type!=='VariableDeclaration'||declaration.declarations.length!==1||returned.type!=='ReturnStatement')continue;
+  const binding=declaration.declarations[0];if(binding.id.type!=='Identifier'||method(binding.init,'getDate')!==receiver)continue;
+  const predicate=node=>{
+   if(node?.type==='LogicalExpression'&&node.operator==='&&'){const a=predicate(node.left),b=predicate(node.right);return a&&b?day=>a(day)&&b(day):null;}
+   if(node?.type!=='BinaryExpression'||node.left.type!=='Identifier'||node.left.name!==binding.id.name||node.right.type!=='Literal'||!Number.isInteger(node.right.value)||!['===','==','>=','<=','>','<'].includes(node.operator))return null;
+   const b=node.right.value,op=node.operator;return a=>op==='==='||op==='=='?a===b:op==='>='?a>=b:op==='<='?a<=b:op==='>'?a>b:a<b;
+  };
+  const branches=[];let expression=returned.argument,valid=true;
+  while(expression?.type==='ConditionalExpression'){
+   const test=predicate(expression.test),label=text(expression.consequent);
+   if(!test||label===null){valid=false;break;}
+   branches.push({test,label});expression=expression.alternate;
+  }
+  if(!valid||text(expression)!==fallback||!branches.length)continue;
+  const month=test.right.value,last=new Date(Date.UTC(year,month+1,0)).getUTCDate();let active=null;
+  for(let day=1;day<=last;day++){
+   const branch=branches.find(b=>b.test(day)),iso=year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+   if(branch&&branch.label!==fallback){
+    if(active?.branch===branch)active.range.end=iso;
+    else{const range={start:iso,end:iso,label:branch.label,recurring:true};ranges.push(range);active={branch,range};}
+   }else active=null;
   }
  }
  return ranges;
