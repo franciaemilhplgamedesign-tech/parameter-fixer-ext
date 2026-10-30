@@ -46,6 +46,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
    if(analyzer){
     const analysis=analyzer.analyze(html);
+    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear));
     for(const node of analysis.nodes){
      const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
      if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
@@ -152,6 +153,62 @@ function inspectCalendarBranches(source){
     }
    }
    if(hits.length)ranges.push({start:hits[0],end:hits.at(-1),label:labels.join(' + '),computed:true});
+  }
+ }
+ return ranges;
+}
+
+// Recognize literal month/day branches without running creative code.
+function inspectNestedAnnualCalendar(analysis,previewYear){
+ const ranges=[];
+ for(const fn of analysis.nodes){
+  if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||fn.body?.type!=='BlockStatement')continue;
+  const fields=new Map();let receiver=null,invalid=false;
+  for(const statement of fn.body.body){
+   if(statement.type!=='VariableDeclaration')continue;
+   for(const declaration of statement.declarations){
+    const call=declaration.init,member=call?.callee;
+    if(declaration.id.type!=='Identifier'||call?.type!=='CallExpression'||call.arguments.length||member?.type!=='MemberExpression'||member.computed||member.object.type!=='Identifier')continue;
+    const field=member.property.name==='getMonth'?'month':member.property.name==='getDate'?'day':null;
+    if(!field)continue;
+    if(receiver&&receiver!==member.object.name)invalid=true;
+    receiver=member.object.name;fields.set(declaration.id.name,field);
+   }
+  }
+  if(invalid||!Array.from(fields.values()).includes('month')||!Array.from(fields.values()).includes('day'))continue;
+  const condition=node=>{
+   if(node.type==='LogicalExpression'&&node.operator==='&&'){const a=condition(node.left),b=condition(node.right);return a&&b?value=>a(value)&&b(value):null;}
+   if(node.type!=='BinaryExpression'||!['===','==','>=','<=','>','<'].includes(node.operator)||node.left.type!=='Identifier'||!fields.has(node.left.name)||node.right.type!=='Literal'||!Number.isInteger(node.right.value))return null;
+   const field=fields.get(node.left.name),b=node.right.value,op=node.operator;
+   return value=>{const a=value[field];return op==='==='||op==='=='?a===b:op==='>='?a>=b:op==='<='?a<=b:op==='>'?a>b:a<b;};
+  };
+  const branches=[];
+  function visit(statements,tests=[]){
+   for(const statement of statements){
+    if(statement.type==='VariableDeclaration'){if(tests.length)invalid=true;continue;}
+    if(statement.type==='ReturnStatement'){
+     const result=statement.argument;
+     if(result?.type==='Identifier'||result?.type==='Literal'&&typeof result.value==='string')branches.push({tests,label:result.name||result.value});
+     else if(result?.type!=='Literal'||result.value!==null)invalid=true;
+     return;
+    }
+    if(statement.type!=='IfStatement'){invalid=true;continue;}
+    const test=condition(statement.test);if(!test){invalid=true;continue;}
+    const list=node=>node.type==='BlockStatement'?node.body:[node];
+    visit(list(statement.consequent),[...tests,test]);
+    if(statement.alternate)visit(list(statement.alternate),[...tests,value=>!test(value)]);
+   }
+  }
+  visit(fn.body.body);if(invalid||!branches.length)continue;
+  for(const year of [previewYear,previewYear+1]){
+   let active=null;
+   for(let date=new Date(Date.UTC(year,0,1));date.getUTCFullYear()===year;date.setUTCDate(date.getUTCDate()+1)){
+    const value={month:date.getUTCMonth(),day:date.getUTCDate()},branch=branches.find(b=>b.tests.every(test=>test(value))),iso=date.toISOString().slice(0,10);
+    if(branch&&branch.tests.length){
+     if(active?.branch===branch)active.range.end=iso;
+     else{const range={start:iso,end:iso,label:'Annual promo',recurring:true};ranges.push(range);active={branch,range};}
+    }else active=null;
+   }
   }
  }
  return ranges;
