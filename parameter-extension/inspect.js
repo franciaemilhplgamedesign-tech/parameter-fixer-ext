@@ -11,7 +11,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
     const label=get('text')||get('name')||get('promo')||get('label')||get('id')||'Holiday';
     const recurring=/^\d{2}-\d{2}$/.test(start||'')&&/^\d{2}-\d{2}$/.test(end||'');
     if(!recurring&&(!/^\d{4}-\d{2}-\d{2}$/.test(start||'')||!/^\d{4}-\d{2}-\d{2}$/.test(end||'')))continue;
-    for(const year of recurring?[previewYear,previewYear+1]:[null]){
+    for(const year of recurring?[previewYear]:[null]){
      const first=recurring?year+'-'+start:start,last=recurring?year+'-'+end:end;
      const valid=s=>{const d=new Date(s+'T12:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===s;};
      // Do not invent a New Year wrap: these creatives compare bounds directly.
@@ -57,7 +57,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
   // Direct annual month/day windows. JavaScript getMonth() is zero-based.
   for(const m of inspectionSource.matchAll(/\b([\w$]+)\.getMonth\(\)\s*===\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*>=\s*(\d{1,2})\s*&&\s*\1\.getDate\(\)\s*<=\s*(\d{1,2})/g)){
    const month=Number(m[2])+1,start=Number(m[3]),end=Number(m[4]);if(month<1||month>12||start<1||start>end)continue;
-   for(const year of [previewYear,previewYear+1]){
+   for(const year of [previewYear]){
     const iso=day=>year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
     const last=new Date(Date.UTC(year,month,0)).getUTCDate();if(end<=last)ranges.push({start:iso(start),end:iso(end),label:'Annual promo',recurring:true});
    }
@@ -200,7 +200,7 @@ function inspectNestedAnnualCalendar(analysis,previewYear){
    }
   }
   visit(fn.body.body);if(invalid||!branches.length)continue;
-  for(const year of [previewYear,previewYear+1]){
+  for(const year of [previewYear]){
    let active=null;
    for(let date=new Date(Date.UTC(year,0,1));date.getUTCFullYear()===year;date.setUTCDate(date.getUTCDate()+1)){
     const value={month:date.getUTCMonth(),day:date.getUTCDate()},branch=branches.find(b=>b.tests.every(test=>test(value))),iso=date.toISOString().slice(0,10);
