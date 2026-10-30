@@ -218,7 +218,6 @@ function findSnippetLine(text,snippet){const i=text.indexOf(snippet);return i<0?
             '    return false;',
             '  };',
             '  window.handleClickAction=function(){return window.handleMraidOpen();};',
-            '  window["openClickThrough"]=window.handleClickAction;',
             '})();',
             '\x3c/script>'
           ].join('\n');

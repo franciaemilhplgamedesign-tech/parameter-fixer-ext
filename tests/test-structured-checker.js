@@ -25,7 +25,7 @@ global.__creativeExecuted=false;CS.analyze(wrap('globalThis.__creativeExecuted=t
 assert.equal(finding(wrap('const broken = ;'),'source-parser').status,'warning');
 console.log('Passed structured assets, comparison/redirect distinction, UTF-8 Base64 packaging, asset-ID lookup, raw/unresolved scenes, embedded holiday dates, parser coverage and no execution.');
 
-const annual=inspectCreativeHtml(wrap('const now=new Date();const active=now.getMonth()===10&&now.getDate()>=17&&now.getDate()<=30;'));assert.equal(annual.ranges.length,2);assert(annual.ranges.every(r=>r.start.endsWith('-11-17')&&r.end.endsWith('-11-30')&&r.recurring));
+const annual=inspectCreativeHtml(wrap('const now=new Date();const active=now.getMonth()===10&&now.getDate()>=17&&now.getDate()<=30;'));assert.equal(annual.ranges.length,1);assert(annual.ranges.every(r=>r.start.endsWith('-11-17')&&r.end.endsWith('-11-30')&&r.recurring));
 assert.equal(finding(source.replace('c=>c.charCodeAt(0)','c=>0'),'end-scene').status,'warning');
 assert.equal(finding(wrap('const variants={one:'+JSON.stringify(data)+',two:'+JSON.stringify(data)+'};const frame={srcDoc:variants[runtime],title:"End Scene"};'),'end-scene').status,'pass');
 

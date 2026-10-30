@@ -37,16 +37,24 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  const visibility=/isViewable\s*\(/.test(code)&&/["']viewableChange["']/.test(code);
  add('viewability','Media viewability',!media||visibility?'pass':'warning',!media?'No media detected.':visibility?'Viewability signals detected; verify media pauses/resumes correctly.':'Media found without both isViewable() and viewableChange.');
  const reserved=new Set();
- if(analysis)for(const n of analysis.nodes){
-  const parent=analysis.parents.get(n);
-  if(n.type==='Identifier'&&['clickTag1','clickthrough','clickThrough'].includes(n.name))reserved.add(n.name);
+ const clickAnalyses=[analysis];
+ if(analysis){const pending=analysis.documents.map(html=>({html,depth:1})),seen=new Set([html]);let budget=16000000;while(pending.length){const item=pending.shift();if(seen.has(item.html)||item.html.length>budget)continue;seen.add(item.html);budget-=item.html.length;const nested=typeof CreativeSource!=="undefined"?CreativeSource.analyze(item.html):require("./creative-source").analyze(item.html);clickAnalyses.push(nested);if(item.depth<2)pending.push(...nested.documents.map(html=>({html,depth:item.depth+1})));}}
+ const cachedBridge=new Set();
+ for(const inspected of clickAnalyses)if(inspected)for(const node of inspected.nodes){
+  const live=n=>n?.type==="MemberExpression"&&n.object.name==="window"&&inspected.property(n)==="mraid";
+  if(node.type==="VariableDeclarator"&&node.id.type==="Identifier"&&(live(node.init)||node.init?.type==="LogicalExpression"&&["||","??"].includes(node.init.operator)&&live(node.init.left)))cachedBridge.add(node.id.name);
+ }
+ add("mraid-cache","Live MRAID bridge reference",cachedBridge.size?"warning":"pass",cachedBridge.size?"Cached window.mraid reference(s): "+[...cachedBridge].join(", ")+". Read window.mraid live for each CTA open; a cached bridge may be stale or captured before injection. Includes supported decoded end scenes. Review before changing readiness or fallback behavior.":"No cached window.mraid variable detected in inspected source or supported decoded end scenes.");
+ if(analysis)for(const inspected of clickAnalyses)for(const n of inspected.nodes){
+  const parent=inspected.parents.get(n);
+  if(n.type==='Identifier'&&['clickTag1','clickthrough','clickThrough','openClickThrough'].includes(n.name))reserved.add(n.name);
   if(n.type==='Identifier'&&n.name==='clickTag'&&!(parent?.type==='MemberExpression'&&parent.object.name==='window'&&parent.property===n&&!parent.computed))reserved.add('bare/local clickTag');
   if(n.type==='MemberExpression'&&n.object.name==='window'){
-   const name=analysis.property(n);
-   if(['clickTag1','clickthrough','clickThrough'].includes(name))reserved.add(name);
+   const name=inspected.property(n);
+   if(['clickTag1','clickthrough','clickThrough','openClickThrough'].includes(name))reserved.add(name);
    if(name==='clickTag'&&((parent?.type==='AssignmentExpression'&&parent.left===n)||(parent?.type==='UpdateExpression')))reserved.add('assignment to window.clickTag');
   }
- }else for(const name of ['clickTag1','clickthrough','clickThrough'])if(new RegExp('\\b'+name+'\\b').test(code))reserved.add(name);
+ }else for(const name of ['clickTag1','clickthrough','clickThrough','openClickThrough'])if(new RegExp('\\b'+name+'\\b').test(code))reserved.add(name);
  add('clicktag','Click tracking (reserved names)',reserved.size?'error':'pass',reserved.size?'Reserved click identifier(s): '+[...reserved].join(', ')+'. Only the platform-injected window.clickTag may be read. Rename local aliases and preserve the injected target; reserved names can prevent tap redirects.':'No reserved click aliases or local clickTag overrides detected. Use only the platform-injected window.clickTag for tracking.');
  const touch=/["']touchend["']/.test(code)&&/["'](?:click|pointerup)["']/.test(code);
  add('tap','Touch/click duplication',touch&&!/(?:lastTap|debounc|preventDefault|timeStamp)/i.test(code)?'warning':'pass',touch?'Multiple input types detected; verify one CTA per tap.':'No overlapping touchend/click handling detected.');

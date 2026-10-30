@@ -16,10 +16,10 @@ async function fixCreativePipeline(input,sourceUrl,options={},progress=()=>{}){
   function replacement(name){if(!names.has(name)){let candidate='ecCreative_'+name;while(reservedSource.includes(candidate))candidate+='_';names.set(name,candidate);}return names.get(name);}
   for(const n of a.nodes){const p=a.parents.get(n);let name=null;
    if(n.type==='Identifier'){
-    if(['clickTag1','clickthrough','clickThrough'].includes(n.name))name=n.name;
+    if(['clickTag1','clickthrough','clickThrough','openClickThrough'].includes(n.name))name=n.name;
     if(n.name==='clickTag'&&(localWindowTarget||!(p?.type==='MemberExpression'&&p.object.name==='window'&&p.property===n&&!p.computed)))name=n.name;
    }else if(n.type==='Literal'&&typeof n.value==='string'&&((p?.type==='MemberExpression'&&p.property===n)||(p?.type==='Property'&&p.key===n))){
-    if(['clickTag1','clickthrough','clickThrough'].includes(n.value)||(localWindowTarget&&n.value==='clickTag'))name=n.value;
+    if(['clickTag1','clickthrough','clickThrough','openClickThrough'].includes(n.value)||(localWindowTarget&&n.value==='clickTag'))name=n.value;
    }
    if(name)list.push({start:n.start,end:n.end,text:n.type==='Literal'?JSON.stringify(replacement(name)):replacement(name)});
   }
@@ -86,7 +86,7 @@ async function fixCreativePipeline(input,sourceUrl,options={},progress=()=>{}){
   // Inspect markup/CSS only here; JavaScript URLs must not be replaced by text.
   const held=[];html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,script=>{if(/^<script\b[^>]*\bsrc\s*=/i.test(script))return script;const key='<!--ec-held-script-'+held.length+'-->';held.push(script);return key;});
   html=html.replace(/\b(on[\w]+)\s*=\s*(["'])(.*?)\2/gi,(match,key,quote,code)=>{
-   if(!/\b(?:clickTag|clickTag1|clickthrough|clickThrough)\b/.test(code))return match;
+   if(!/\b(?:clickTag|clickTag1|clickthrough|clickThrough|openClickThrough)\b/.test(code))return match;
    const decoded=code.replace(/&(?:quot|amp|lt|gt|#39);/g,s=>({'&quot;':'"','&amp;':'&','&lt;':'<','&gt;':'>','&#39;':"'"}[s]));
    const fixed=rename(decoded,names,reservedSource,windowTarget).replace(/&/g,'&amp;').replace(new RegExp(quote,'g'),quote==='"'?'&quot;':'&#39;');return key+'='+quote+fixed+quote;
   });
