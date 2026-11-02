@@ -1,14 +1,14 @@
 const REVIEW_MAX_FILES=20;
 const REVIEW_PROMPT='check grammar and filename';
-let reviewHasSelectedHtml=true;
+let reviewHasSelectedHtml=true,reviewSelectedFilenames=[];
 function orderReviewItems(items){return [...items].sort((a,b)=>Number(a.kind==='html')-Number(b.kind==='html')||Number(a.metadata?.capturedAt??a.created??0)-Number(b.metadata?.capturedAt??b.created??0));}
 async function selectedReviewItems(){return orderReviewItems((await reviewStore('readonly',store=>store.getAll())).filter(i=>i.selected&&(i.kind==='html'||i.kind==='image')));}
-function buildReviewPrompt(taskName='',additionalNotes='',hasHtml=true){
+function buildReviewPrompt(taskName='',additionalNotes='',hasHtml=true,filenames=[]){
  const name=String(taskName).trim();if(name.length>500)throw new Error('Task name must be 500 characters or fewer.');
  const notes=String(additionalNotes).trim();if(notes.length>4000)throw new Error('Additional notes must be 4000 characters or fewer.');
- return (hasHtml?REVIEW_PROMPT:'check grammar')+(name?' for task '+name:'')+(notes?'\nadditional notes: '+notes:'');
+ return (hasHtml?REVIEW_PROMPT:'check grammar')+(name?' for task '+name:'')+(notes?'\nadditional notes: '+notes:'')+(filenames.length?'\nfilenames:\n'+filenames.map(name=>String(name).replace(/[\r\n]/g,' ')).join('\n'):'');
 }
-function getReviewPrompt(hasHtml=reviewHasSelectedHtml){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'',typeof document==='undefined'?'':document.getElementById('review-additional-notes')?.value||'',hasHtml);}
+function getReviewPrompt(hasHtml=reviewHasSelectedHtml,items=null){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'',typeof document==='undefined'?'':document.getElementById('review-additional-notes')?.value||'',hasHtml,typeof document!=='undefined'&&document.getElementById('review-include-filenames')?.checked?(items?items.map(i=>i.name):reviewSelectedFilenames):[]);}
 
 const REVIEW_URL='https://chatgpt.com/g/g-p-6aba53db995c819187554fe66297a936-emil-francia-ecomm-checker/c/6aba5459-e97c-83ec-9e60-8c167d76c1ab';
 let reviewDbPromise,reviewUrls=[];
@@ -70,7 +70,7 @@ async function collectCurrentLocalHtml(){
 
 async function renderReview(){
  const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.kind==='html'||i.kind==='image');
- const ordered=orderReviewItems(items);items.splice(0,items.length,...ordered);reviewHasSelectedHtml=items.some(i=>i.selected&&i.kind==='html');updateReviewPromptPreview();
+ const ordered=orderReviewItems(items);items.splice(0,items.length,...ordered);reviewHasSelectedHtml=items.some(i=>i.selected&&i.kind==='html');reviewSelectedFilenames=items.filter(i=>i.selected).map(i=>i.name);updateReviewPromptPreview();
  const gallery=document.getElementById('review-gallery');gallery.replaceChildren();reviewUrls.forEach(URL.revokeObjectURL);reviewUrls=[];
  const fileList=document.createElement('div');fileList.className='review-files';
  const imageGrid=document.createElement('div');imageGrid.className='review-images';
@@ -102,7 +102,7 @@ async function removeReviewItems(all){
 }
 async function createReviewPackage(prompt,providedItems){
  const items=providedItems||await selectedReviewItems();
- prompt??=getReviewPrompt(items.some(i=>i.kind==='html'));
+ prompt??=getReviewPrompt(items.some(i=>i.kind==='html'),items);
  if(items.length>REVIEW_MAX_FILES)throw new Error('Select no more than 20 files total (HTML + images).');
  if(!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot. HTML files are optional.');
  const entries=[],names=new Set();
@@ -128,6 +128,9 @@ reviewAdditionalNotes.addEventListener('input',()=>{
  additionalNotesEdited=true;updateReviewPromptPreview();chrome.storage.local.set({reviewAdditionalNotes:reviewAdditionalNotes.value}).catch(error=>{reviewStatus.textContent='Could not save additional notes: '+error.message;});
 });
 chrome.storage.local.get('reviewAdditionalNotes').then(saved=>{if(!additionalNotesEdited&&typeof saved.reviewAdditionalNotes==='string')reviewAdditionalNotes.value=saved.reviewAdditionalNotes.slice(0,4000);updateReviewPromptPreview();}).catch(()=>updateReviewPromptPreview());
+const includeFilenames=document.getElementById('review-include-filenames');let filenamesEdited=false;
+includeFilenames?.addEventListener('change',()=>{filenamesEdited=true;updateReviewPromptPreview();chrome.storage.local.set({reviewIncludeFilenames:includeFilenames.checked}).catch(()=>{});});
+chrome.storage.local.get('reviewIncludeFilenames').then(saved=>{if(includeFilenames&&!filenamesEdited)includeFilenames.checked=saved.reviewIncludeFilenames===true;updateReviewPromptPreview();}).catch(()=>{});
 updateReviewPromptPreview();
 chrome.storage.local.get('reviewSendStatus').then(saved=>{if(saved.reviewSendStatus)reviewStatus.textContent=saved.reviewSendStatus;});
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.reviewSendStatus)reviewStatus.textContent=changes.reviewSendStatus.newValue;});

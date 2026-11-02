@@ -106,6 +106,7 @@ var CreativeSource=(()=>{
    if(n.type==='ConditionalExpression')return [...origins(n.consequent,depth+1),...origins(n.alternate,depth+1)];
    if(n.type==='MemberExpression'){
     let object=n.object;if(object.type==='Identifier')object=lookup(object,object.name);
+    if(object?.type==='CallExpression'&&object.callee.type==='MemberExpression'&&object.callee.object.name==='Object'&&['freeze','seal'].includes(property(object.callee))&&object.arguments.length===1)object=object.arguments[0];
     if(object?.type==='ObjectExpression'){
      const key=n.computed?resolve(n.property)?.value:property(n);
      const props=object.properties.filter(p=>p.type==='Property'&&(key===undefined||(p.key.name??p.key.value)===key));

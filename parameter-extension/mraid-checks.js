@@ -123,6 +123,8 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null,selectedMip=false){
     if(typeof title==='string'&&/end[- ]?(?:scene|card)|offer/i.test(title)&&props.has('srcDoc')){
      for(const result of analysis.origins(props.get('srcDoc')))candidates.push({label:'end-scene srcDoc',index:0,value:result?.value||null,packaged:result?.packaged});
     }
+    // Exported React end-card renderers receive HTML through a named prop.
+    if(explicitEnd&&props.has('endSceneHtml'))for(const result of analysis.origins(props.get('endSceneHtml')))candidates.push({label:'end-scene HTML prop',index:0,value:result?.value??null,packaged:result?.packaged});
     const id=analysis.resolve(props.get('htmlId'))?.value;
     if(typeof id==='string'){
      const asset=analysis.nodes.find(n=>n.type==='Property'&&(n.key.name??n.key.value)===id);
@@ -152,7 +154,7 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null,selectedMip=false){
   candidates.push({label,index,...item,value:item?.value||null});
  }
  for(const m of html.matchAll(/\bsrcDoc\s*:\s*/g)){
-  if(candidates.some(c=>c.label==='end-scene srcDoc'))continue;
+  if(candidates.some(c=>(c.label==='end-scene srcDoc'||c.label==='end-scene HTML prop')))continue;
   // Restrict React srcDoc to end-scene renderers, not arbitrary game iframes.
   const tail=html.slice(m.index,m.index+700);
   if(!/title\s*:\s*["']End Scene["']|end[- ]?(?:scene|card)/i.test(tail))continue;
@@ -160,10 +162,10 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null,selectedMip=false){
  }
  for(const m of html.matchAll(/\bsrcdoc\s*=\s*(["'])/gi)){
   // DOM attributes inside an end-scene container or a known MIP export.
-  if(!explicitEnd||candidates.some(c=>c.label==='end-scene srcDoc'))continue;
+  if(!explicitEnd||candidates.some(c=>(c.label==='end-scene srcDoc'||c.label==='end-scene HTML prop')))continue;
   const item=literalAt(m.index+m[0].length-1);candidates.push({label:'end-scene srcdoc attribute',...item});
  }
- if(explicitEnd&&!candidates.some(c=>c.label==='end-scene srcDoc'||c.label.startsWith('end-scene HTML asset')))for(const m of html.matchAll(/\.srcdoc\s*=\s*/g))take(html.slice(m.index+m[0].length,m.index+m[0].length+400),m.index+m[0].length,'end-scene srcdoc assignment');
+ if(explicitEnd&&!candidates.some(c=>(c.label==='end-scene srcDoc'||c.label==='end-scene HTML prop')||c.label.startsWith('end-scene HTML asset')))for(const m of html.matchAll(/\.srcdoc\s*=\s*/g))take(html.slice(m.index+m[0].length,m.index+m[0].length+400),m.index+m[0].length,'end-scene srcdoc assignment');
  for(const block of html.matchAll(/(?:endscene|endScene|endCard)["']?\s*:\s*\{[^{}]*\}/g)){
   for(const field of block[0].matchAll(/\b(?:html|src|url|htmlSrc|videoSrc)["']?\s*:\s*/g)){
    const index=block.index+field.index+field[0].length;take(html.slice(index,index+400),index,'configured end-scene source');
