@@ -80,6 +80,7 @@ async function sendSelectedReview(){
  const items=await selectedReviewItems();
  if(items.length>20)throw new Error('Select no more than 20 files total (HTML + images).');
  if(!items.some(i=>i.kind==='image'))throw new Error('Select at least one screenshot. HTML files are optional.');
+ await refreshReviewLocalFilename();
  const prompt=getReviewPrompt(items.some(i=>i.kind==='html'),items);
  const files=[];
  for(const item of items){
