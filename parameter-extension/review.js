@@ -8,7 +8,7 @@ function buildReviewPrompt(taskName='',additionalNotes='',hasHtml=true,filenames
  const notes=String(additionalNotes).trim();if(notes.length>4000)throw new Error('Additional notes must be 4000 characters or fewer.');
  return (hasHtml?REVIEW_PROMPT:'check grammar')+(name?' for task '+name:'')+(notes?'\nadditional notes: '+notes:'')+(filenames.length?'\nfilenames:\n'+filenames.map(name=>String(name).replace(/[\r\n]/g,' ')).join('\n'):'');
 }
-function getReviewPrompt(hasHtml=reviewHasSelectedHtml,items=null){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'',typeof document==='undefined'?'':document.getElementById('review-additional-notes')?.value||'',hasHtml,typeof document!=='undefined'&&document.getElementById('review-include-filenames')?.checked?(items?items.map(i=>i.name):reviewSelectedFilenames):[]);}
+function getReviewPrompt(hasHtml=reviewHasSelectedHtml,items=null){return buildReviewPrompt(typeof document==='undefined'?'':document.getElementById('review-task-name')?.value||'',typeof document==='undefined'?'':document.getElementById('review-additional-notes')?.value||'',hasHtml,typeof document!=='undefined'&&document.getElementById('review-include-filenames')?.checked?(items?items.filter(i=>i.kind==='html').map(i=>i.name):reviewSelectedFilenames):[]);}
 
 const REVIEW_URL='https://chatgpt.com/g/g-p-6aba53db995c819187554fe66297a936-emil-francia-ecomm-checker/c/6aba5459-e97c-83ec-9e60-8c167d76c1ab';
 let reviewDbPromise,reviewUrls=[];
@@ -70,7 +70,7 @@ async function collectCurrentLocalHtml(){
 
 async function renderReview(){
  const items=(await reviewStore('readonly',store=>store.getAll())).filter(i=>i.kind==='html'||i.kind==='image');
- const ordered=orderReviewItems(items);items.splice(0,items.length,...ordered);reviewHasSelectedHtml=items.some(i=>i.selected&&i.kind==='html');reviewSelectedFilenames=items.filter(i=>i.selected).map(i=>i.name);updateReviewPromptPreview();
+ const ordered=orderReviewItems(items);items.splice(0,items.length,...ordered);reviewHasSelectedHtml=items.some(i=>i.selected&&i.kind==='html');reviewSelectedFilenames=items.filter(i=>i.selected&&i.kind==='html').map(i=>i.name);updateReviewPromptPreview();
  const gallery=document.getElementById('review-gallery');gallery.replaceChildren();reviewUrls.forEach(URL.revokeObjectURL);reviewUrls=[];
  const fileList=document.createElement('div');fileList.className='review-files';
  const imageGrid=document.createElement('div');imageGrid.className='review-images';
