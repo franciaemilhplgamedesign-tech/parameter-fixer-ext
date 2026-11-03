@@ -9,9 +9,14 @@ async function attachReviewInChecker(files,prompt){
  async function waitFor(read,timeout=30000,stage='control'){
   const end=Date.now()+timeout;while(Date.now()<end){const result=read();if(result)return result;await sleep(300);}throw new Error('Timed out waiting for '+stage+'. Page: '+document.title+' ('+location.pathname+'). If this is a login, unavailable conversation, or browser verification page, resolve it in the checker tab and retry.');
  }
- const composer=await waitFor(()=>[...document.querySelectorAll('#prompt-textarea,[contenteditable="true"][role="textbox"],.ProseMirror[contenteditable="true"],[contenteditable="true"][data-lexical-editor],textarea[placeholder],div[contenteditable="true"][data-placeholder]')].find(el=>el.getClientRects().length&&!el.disabled&&el.getAttribute('aria-hidden')!=='true'),60000,'visible message composer');
- const region=()=>composer.closest('form,[data-type="unified-composer"],[data-testid="composer"]')||composer.parentElement?.parentElement?.parentElement;
- if((composer.innerText||composer.value||'').trim())throw new Error('The checker already has an unsent draft. Clear or send that draft before retrying.');
+ const findComposer=()=>[...document.querySelectorAll('#prompt-textarea,[contenteditable="true"][role="textbox"],.ProseMirror[contenteditable="true"],[contenteditable="true"][data-lexical-editor],textarea[placeholder],div[contenteditable="true"][data-placeholder]')].find(el=>el.getClientRects().length&&!el.disabled&&el.getAttribute('aria-hidden')!=='true');
+ let composer=await waitFor(findComposer,60000,'visible message composer');
+ function currentComposer(){composer=findComposer()||composer;return composer;}
+ function draftText(){const el=currentComposer();return el.tagName==='TEXTAREA'?el.value||'':el.innerText||el.textContent||'';}
+ const normalize=text=>String(text).replace(/[\u200B\uFEFF]/g,'').replace(/\s+/g,' ').trim();
+ const promptMatches=()=>normalize(draftText())===normalize(prompt);
+ const region=()=>currentComposer().closest('form,[data-type="unified-composer"],[data-testid="composer"]')||composer.parentElement?.parentElement?.parentElement;
+ if(draftText().trim())throw new Error('The checker already has an unsent draft. Clear or send that draft before retrying.');
  function uploadInput(){return [...document.querySelectorAll('input[type="file"]')].filter(el=>!el.disabled).sort((a,b)=>Number(!!b.multiple)-Number(!!a.multiple)).find(el=>!el.accept||/html|application|text|\*\/\*/i.test(el.accept)||(files.every(f=>f.type.startsWith('image/'))&&/image/i.test(el.accept)));}
  progress('Locating file upload controls…');
  let input=uploadInput();
@@ -45,6 +50,8 @@ async function attachReviewInChecker(files,prompt){
  // Verify files are staged, then prepare a draft for the user to send.
  try{await waitFor(()=>files.every(attachmentSeen),90000,'selected attachments');}catch(_){throw new Error('Could not verify every attachment. Inspect the checker draft before retrying to avoid duplicates.');}
  progress('Attachments found. Adding the review prompt…');
+ currentComposer();
+ if(draftText().trim())throw new Error('The checker draft changed during attachment upload. Review it manually; no message was sent.');
  if(composer.tagName==='TEXTAREA'){
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(composer,prompt);
   composer.dispatchEvent(new Event('input',{bubbles:true}));
@@ -52,7 +59,7 @@ async function attachReviewInChecker(files,prompt){
   composer.focus();document.execCommand('insertText',false,prompt);
   composer.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:prompt}));
  }
- if((composer.innerText||composer.value||'').trim()!==prompt)throw new Error('Could not set the review prompt. No message was sent.');
+ try{await waitFor(promptMatches,10000,'review prompt to appear');}catch(_){throw new Error('Could not verify the review prompt. Check the checker draft manually; no message was sent.');}
  function attachmentUploading(){
   const root=region();if(!root)return true;
   // Composer-wide aria-busy/progress markers also describe unrelated UI work.
@@ -71,7 +78,7 @@ async function attachReviewInChecker(files,prompt){
   if(stableSince===null)stableSince=Date.now();
   return Date.now()-stableSince>=1200;
  },90000,'uploaded attachments and enabled Send button');
- if((composer.innerText||composer.value||'').trim()!==prompt)throw new Error('The draft changed during upload. Check it manually; no message was sent.');
+ if(!promptMatches())throw new Error('The draft changed during upload. Check it manually; no message was sent.');
  progress('Files ready. Review draft prepared—click Send in ChatGPT.');
  return {ready:true,sent:false,count:files.length};
  }catch(error){return {ready:false,sent:false,error:error.message};}
