@@ -65,7 +65,7 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
   if(/(?:^|\/)mraid(?:\.min)?\.js(?:[?#].*)?$/i.test(m[1]))continue;
   if(!/^(?:data:|blob:|#)/i.test(m[1]))remotes.push(m[1]);
  }
- function cssAssets(text){for(const m of text.matchAll(/url\(\s*["']?([^\s)'"\n]+)["']?\s*\)/gi))if(!/^(?:data:|blob:|#)/i.test(m[1]))remotes.push(m[1]);}
+ function cssAssets(text){text=text.replace(/&amp;/gi,'&').replace(/&amp;/gi,'&').replace(/&quot;|&#34;/gi,'"').replace(/&apos;|&#39;/gi,"'");for(const m of text.matchAll(/url\(\s*["']?([^\s)'"\n]+)["']?\s*\)/gi))if(!/^(?:data:|blob:|#)/i.test(m[1]))remotes.push(m[1]);}
  cssAssets(markup);
  if(analysis)for(const node of analysis.nodes){
   if(node.type==='Literal'&&typeof node.value==='string'&&/url\(/i.test(node.value))cssAssets(node.value);

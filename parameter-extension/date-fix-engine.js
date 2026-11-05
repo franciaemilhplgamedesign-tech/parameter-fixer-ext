@@ -1,4 +1,6 @@
 function fixSipHtml(html) {
+  const sprt=typeof SprtTools!=='undefined'?SprtTools:typeof require==='function'?require('./sprt-tools'):null;
+  const sprtResult=sprt?.fixDate(html);if(sprtResult)return sprtResult;
   if(/\.get\(\s*["']date["']\s*\)/.test(html) && !/function\s+resolveSipEffectiveDate\s*\(/.test(html) && !html.includes('creative-mip-date-override-v1')){
     return {html,changed:false,native:true,message:'Native date parameter reader detected. Existing implementation preserved; no date patch needed.'};
   }

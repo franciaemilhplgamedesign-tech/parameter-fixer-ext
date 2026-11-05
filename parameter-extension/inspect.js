@@ -1,6 +1,8 @@
 function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) {
   if(!Number.isInteger(previewYear)||previewYear<1900||previewYear>9998)previewYear=new Date().getFullYear();
   const ranges=[],seen=new Set();
+  const sprt=typeof SprtTools!=='undefined'?SprtTools:typeof require==='function'?require('./sprt-tools'):null;
+  if(sprt)ranges.push(...sprt.ranges(html,previewYear));
   // Read literal data only; never evaluate uploaded JavaScript.
   // Image-based promos store large base64 assets in the same object as dates.
   // Strip only data-URL payloads from the inspection copy; keep the source intact.
