@@ -6,13 +6,17 @@ Local Chrome/Edge tools for SIP/MIP parameters, HTML fixes, source checks, compr
 
 Download EC-FIX-IT-Windows-Updater.zip from the [latest release](https://github.com/franciaemilhplgamedesign-tech/parameter-fixer-ext/releases/latest). Extract it and run Install-Updater.cmd. Select the EXISTING unpacked EC-FIX-IT folder and paste its ID from your browser extensions page. Setup installs the latest release into that same folder. Click Reload once, then reopen EC-FIX-IT and confirm Windows updater connected.
 
-After setup, startup/six-hour checks install future releases automatically when EC-FIX-IT tools are closed, then reload. The Updates panel has an opt-out checkbox and an immediate install button. No manual ZIP extraction/reinstallation is needed for later updates. Existing extension ID and Review data are preserved. Windows 10/11, .NET Framework 4.5+ and Chrome/Chromium 116+ are required. See [setup, recovery and unregister instructions](windows-updater/README.md).
+After setup, startup/six-hour checks install future releases automatically when EC-FIX-IT tools are closed, then reload. The Updates panel has an opt-out checkbox and an immediate install button. No manual ZIP extraction/reinstallation is needed for later updates. Existing extension ID and Review data are preserved. Windows 10/11, .NET Framework 4.5+ and Chrome/Chromium 119+ are required. See [setup, recovery and unregister instructions](windows-updater/README.md).
 
 New users can first Load unpacked from the extension ZIP, then set up the helper. Without the helper, replace files manually in the same folder and click Reload. Enable Allow access to file URLs for local HTML previews.
 
 ## One outer date/language pair — v2.3.0
 
 AppLovin links now use `...Preview/?h=first.html&h2=second.html&date=2026-12-01&language=de`. The fixer embeds same-origin parent inheritance; the extension supplies the adapter early in accessible AppLovin/local frames. Cross-origin hosts must forward parameters themselves. Direct HTML and localhost retain `?date=...&language=...`. See the latest notes for scope and examples.
+
+## Preview overrides — v2.5.0
+
+Parameters retains URL parameter mode and adds preview clock/language overrides. Both toggles start enabled. Turn off Add date and language parameters to URL to preview unsupported files without URL readers. Apply reloads the linked preview; auto-refresh and holiday navigation use the same selections. Existing translations are required for language switching. Original HTML is not modified.
 
 ## Tools
 
@@ -27,7 +31,7 @@ Static checks are review aids, not certification. Test fixed creatives in the ta
 
 Run scripts/build-release.ps1 on Windows to compile the helper and generate the extension ZIP, setup ZIP and SHA-256 assets. Upload to a draft GitHub release first; publish only when all assets exist. The native updater requires EC-FIX-IT-extension-vVERSION.zip plus .zip.sha256 for every future release. Checksum verification uses the trusted repository release; code-signing is not provided.
 
-[Latest release notes](RELEASE-NOTES-v2.4.11.md)
+[Latest release notes](RELEASE-NOTES-v2.5.0.md)
 
 Created By: Emil Son Francia | October 2026
 

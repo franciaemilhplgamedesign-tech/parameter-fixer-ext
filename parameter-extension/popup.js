@@ -6,6 +6,7 @@ for(const [code,label] of Object.entries(languages)){const option=document.creat
 const customOption=document.createElement('option');customOption.value='custom';customOption.textContent='Other / custom code…';languageInput.appendChild(customOption);
 function showCustom(){const custom=languageInput.value==='custom';customLanguage.hidden=!custom;document.getElementById('custom-label').hidden=!custom;}
 function selectedLanguage(){return languageInput.value==='custom'?customLanguage.value.trim():languageInput.value;}
+const previewSpoof=document.getElementById('preview-spoof'),previewUrlParameters=document.getElementById('preview-url-parameters');
 let autoTimer,ready=false;
 function onPreviewChange(){
  clearTimeout(autoTimer);
@@ -24,16 +25,19 @@ connectRangeNavigation(holidaySelect,document.getElementById('holiday-prev'),doc
     else [currentTab]=await chrome.tabs.query({active:true,currentWindow:true});
     document.getElementById('detach').hidden=!!targetId;
     if(!currentTab?.url)throw new Error('Open a supported preview tab first.');
-    const saved=await chrome.storage.local.get(['previewDate','autoRefresh']);
+    const saved=await chrome.storage.local.get(['previewDate','autoRefresh','previewSpoof','previewUrlParameters']);
     const url=new URL(currentTab.url), first=[...url.searchParams].find(([k])=>/^h(?:[1-9]\d*)?$/.test(k));
     const iterationParams=new URLSearchParams(first?.[1].split('?')[1]?.split('#')[0]||'');
     const existing=url.searchParams.has('date')?url.searchParams.getAll('date').at(-1):iterationParams.get('date');
     const existingLanguage=(url.searchParams.has('language')?url.searchParams.getAll('language').at(-1):iterationParams.get('language'))||'';
     languageInput.value=existingLanguage && !languages[existingLanguage]?'custom':existingLanguage;
     customLanguage.value=languageInput.value==='custom'?existingLanguage:'';showCustom();
+    previewSpoof.checked=saved.previewSpoof!==false;previewUrlParameters.checked=saved.previewUrlParameters!==false;
+    const storedOverride=await chrome.scripting.executeScript({target:{tabId:currentTab.id},func:()=>{try{return JSON.parse(sessionStorage.getItem('ecfixit-preview-override-v1')||'null');}catch(_){return null;}}}).catch(()=>[]);
+    const activeOverride=storedOverride[0]?.result?.scope===url.origin+url.pathname?storedOverride[0].result:null;if(activeOverride?.enabled&&activeOverride.scope===url.origin+url.pathname){if(activeOverride.date)dateInput.value=activeOverride.date;if(activeOverride.language){languageInput.value=languages[activeOverride.language]?activeOverride.language:'custom';customLanguage.value=activeOverride.language;showCustom();}}
     autoRefresh.checked=!!saved.autoRefresh;buttons[0].hidden=autoRefresh.checked;
     const today=new Date();
-    dateInput.value=validDate(existing||'')?existing:(saved.previewDate||[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-'));
+    dateInput.value=activeOverride?.enabled?activeOverride.date||'':validDate(existing||'')?existing:(saved.previewDate||[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-'));
     statusEl.textContent=updatePreviewUrl(currentTab.url,'').label+' detected.';
     ready=true;
     window.dispatchEvent(new Event('preview-target-ready'));
@@ -45,14 +49,20 @@ async function apply(date){
  try{
   if(date!=='' && !validDate(date))throw new Error('Choose a valid date.');
   const latest=await chrome.tabs.get(currentTab.id);
-  const result=updatePreviewUrl(latest.url,date,selectedLanguage());
+  if(selectedLanguage()&&!/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(selectedLanguage()))throw new Error('Use a language code such as en or en-US.');
+  const result=updatePreviewUrl(latest.url,previewUrlParameters.checked?date:'',previewUrlParameters.checked?selectedLanguage():'');
+  const targetUrl=new URL(result.url);
+  const config={enabled:previewSpoof.checked,date,language:selectedLanguage(),scope:targetUrl.origin+targetUrl.pathname};
+  await chrome.scripting.executeScript({target:{tabId:currentTab.id},func:config=>{if(config.enabled)sessionStorage.setItem('ecfixit-preview-override-v1',JSON.stringify(config));else sessionStorage.removeItem('ecfixit-preview-override-v1');},args:[config]});
+  await chrome.storage.local.set({previewSpoof:previewSpoof.checked,previewUrlParameters:previewUrlParameters.checked});
   if(date)await chrome.storage.local.set({previewDate:date});
-  if(result.url!==latest.url)await chrome.tabs.update(currentTab.id,{url:result.url});
-  statusEl.textContent=(date?'Applied '+date+' to ':'Removed date override from ')+result.label+'.';
+  if(result.url!==latest.url)await chrome.tabs.update(currentTab.id,{url:result.url});else await chrome.tabs.reload(currentTab.id);
+  statusEl.textContent='Applied '+(previewSpoof.checked?'preview overrides':'URL parameters')+' to '+result.label+'. Reloading preview.';
  }catch(error){statusEl.textContent=error.message;}finally{buttons.forEach(b=>b.disabled=false);}
 }
-buttons[0].addEventListener('click',()=>{if(!dateInput.value){statusEl.textContent='Choose a date first.';return;}apply(dateInput.value);});
+buttons[0].addEventListener('click',()=>apply(dateInput.value));
 buttons[1].addEventListener('click',()=>{clearTimeout(autoTimer);dateInput.value='';apply('');});
+previewSpoof.addEventListener('change',onPreviewChange);previewUrlParameters.addEventListener('change',onPreviewChange);
 dateInput.addEventListener('change',onPreviewChange);
 dateInput.addEventListener('change',()=>{if(validDate(dateInput.value)&&Number(dateInput.value.slice(0,4))!==holidayPreviewYear)scanHolidays();});
 languageInput.addEventListener('change',()=>{showCustom();if(languageInput.value!=='custom')onPreviewChange();});
