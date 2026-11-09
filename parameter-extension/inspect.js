@@ -3,6 +3,20 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
   const ranges=[],seen=new Set();
   const sprt=typeof SprtTools!=='undefined'?SprtTools:typeof require==='function'?require('./sprt-tools'):null;
   if(sprt)ranges.push(...sprt.ranges(html,previewYear));
+  // The Comfrt overlay runtime explicitly supports annual New Year windows.
+  // Read its JSON configuration without executing creative JavaScript.
+  for(const match of html.matchAll(/<script\b[^>]*\bid=["']sip-overlay-settings["'][^>]*>([\s\S]*?)<\/script>/gi)){
+    try{
+      const content=JSON.parse(match[1]).content;
+      if(content?.recurrence!=='annual')continue;
+      for(const campaign of content.campaigns||[]){
+        if(!/^\d{2}-\d{2}$/.test(campaign.start||'')||!/^\d{2}-\d{2}$/.test(campaign.end||'')||campaign.start<=campaign.end)continue;
+        const start=previewYear+'-'+campaign.start,end=(previewYear+1)+'-'+campaign.end;
+        const valid=s=>{const d=new Date(s+'T12:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===s;};
+        if(valid(start)&&valid(end))ranges.push({start,end,label:campaign.copy||campaign.id||'Holiday',recurring:true});
+      }
+    }catch(_){}
+  }
   // Read literal data only; never evaluate uploaded JavaScript.
   // Image-based promos store large base64 assets in the same object as dates.
   // Strip only data-URL payloads from the inspection copy; keep the source intact.
@@ -48,7 +62,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
    if(analyzer){
     const analysis=analyzer.analyze(html);
-    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear));
+    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis));
     for(const node of analysis.nodes){
      const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
      if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
@@ -249,6 +263,73 @@ function inspectGuardedAnnualCalendar(analysis,year){
     if(active?.branch===branch)active.range.end=iso;
     else{const range={start:iso,end:iso,label:branch.label,recurring:true};ranges.push(range);active={branch,range};}
    }else active=null;
+  }
+ }
+ return ranges;
+}
+
+// Fixed-year promo selectors can reject all other months before checking the day.
+function inspectFixedMonthCalendar(analysis){
+ const ranges=[];
+ const dateReceiver=(node,method)=>{
+  const member=node?.callee;
+  return node?.type==='CallExpression'&&!node.arguments.length&&member?.type==='MemberExpression'&&
+   !member.computed&&member.property.name===method&&member.object.type==='Identifier'?member.object.name:null;
+ };
+ for(const fn of analysis.nodes){
+  if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||fn.body?.type!=='BlockStatement')continue;
+  const [guard,declaration,...body]=fn.body.body;
+  const test=guard?.test;
+  if(guard?.type!=='IfStatement'||guard.alternate||test?.type!=='LogicalExpression'||test.operator!=='||'||
+     guard.consequent.type!=='ReturnStatement'||guard.consequent.argument?.type!=='Literal'||guard.consequent.argument.value!==null)continue;
+  const bounds=[test.left,test.right];
+  if(!bounds.every(n=>n.type==='BinaryExpression'&&n.operator==='!=='&&n.right.type==='Literal'&&Number.isInteger(n.right.value)))continue;
+  const yearBound=bounds.find(n=>dateReceiver(n.left,'getFullYear'));
+  const monthBound=bounds.find(n=>dateReceiver(n.left,'getMonth'));
+  if(!yearBound||!monthBound)continue;
+  const receiver=dateReceiver(yearBound.left,'getFullYear');
+  const year=yearBound.right.value,month=monthBound.right.value;
+  if(dateReceiver(monthBound.left,'getMonth')!==receiver||year<1900||year>9999||month<0||month>11)continue;
+  if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const'||declaration.declarations.length!==1)continue;
+  const day=declaration.declarations[0];
+  if(day.id.type!=='Identifier'||dateReceiver(day.init,'getDate')!==receiver)continue;
+  const fallback=body.pop();
+  if(fallback?.type!=='ReturnStatement'||fallback.argument?.type!=='Literal'||fallback.argument.value!==null||!body.length)continue;
+  function dayTest(node){
+   if(node.type==='LogicalExpression'&&node.operator==='&&'){
+    const left=dayTest(node.left),right=dayTest(node.right);
+    return left&&right?value=>left(value)&&right(value):null;
+   }
+   if(node.type!=='BinaryExpression'||node.left.type!=='Identifier'||node.left.name!==day.id.name||
+      node.right.type!=='Literal'||!Number.isInteger(node.right.value))return null;
+   const bound=node.right.value;
+   switch(node.operator){
+    case '===': return value=>value===bound;
+    case '>=': return value=>value>=bound;
+    case '<=': return value=>value<=bound;
+    default: return null;
+   }
+  }
+  const branches=[];
+  for(const branch of body){
+   if(branch.type!=='IfStatement'||branch.alternate||branch.consequent.type!=='ReturnStatement'||
+      branch.consequent.argument?.type!=='ObjectExpression')break;
+   const matches=dayTest(branch.test),promo=analysis.resolve(branch.consequent.argument)?.value;
+   const label=promo?.name||promo?.label||promo?.id;
+   if(!matches||typeof label!=='string'||!label.trim())break;
+   branches.push({matches,label});
+  }
+  if(branches.length!==body.length)continue;
+  let previous,range;
+  const last=new Date(Date.UTC(year,month+1,0)).getUTCDate();
+  for(let day=1;day<=last;day++){
+   const branch=branches.find(item=>item.matches(day));
+   if(branch){
+    const date=new Date(Date.UTC(year,month,day)).toISOString().slice(0,10);
+    if(branch===previous)range.end=date;
+    else{range={start:date,end:date,label:branch.label};ranges.push(range);}
+   }
+   previous=branch;
   }
  }
  return ranges;
