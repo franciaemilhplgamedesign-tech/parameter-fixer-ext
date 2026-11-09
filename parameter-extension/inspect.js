@@ -62,7 +62,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
    if(analyzer){
     const analysis=analyzer.analyze(html);
-    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis));
+    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis),...inspectHolidayModeCalendar(analysis,previewYear));
     for(const node of analysis.nodes){
      const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
      if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
@@ -328,6 +328,72 @@ function inspectFixedMonthCalendar(analysis){
     const date=new Date(Date.UTC(year,month,day)).toISOString().slice(0,10);
     if(branch===previous)range.end=date;
     else{range={start:date,end:date,label:branch.label};ranges.push(range);}
+   }
+   previous=branch;
+  }
+ }
+ return ranges;
+}
+
+
+// Read the default calendar in holiday-mode selectors with optional URL overrides.
+function inspectHolidayModeCalendar(analysis,year){
+ const ranges=[];
+ const labels={BF:'BLACK FRIDAY',CM:'CYBER MONDAY'};
+ for(const fn of analysis.nodes){
+  if(fn.type!=='FunctionDeclaration'||fn.id?.name!=='getHolidayMode')continue;
+  const statements=fn.body.body;
+  const fallback=statements.at(-1);
+  if(fallback?.type!=='ReturnStatement'||fallback.argument?.type!=='Literal'||fallback.argument.value!==null)continue;
+  const firstBranch=statements.findIndex((node,index)=>node.type==='IfStatement'&&
+   index>=2&&statements[index-1].type==='VariableDeclaration'&&statements[index-2].type==='VariableDeclaration'&&
+   statements[index-1].declarations[0]?.init?.callee?.property?.name==='getDate'&&
+   node.consequent.type==='ReturnStatement'&&Object.hasOwn(labels,node.consequent.argument?.value));
+  if(firstBranch<2)continue;
+  const [month,day]=statements.slice(firstBranch-2,firstBranch).map(node=>
+   node.kind==='const'&&node.declarations.length===1?node.declarations[0]:null);
+  if(month?.id.type!=='Identifier'||day?.id.type!=='Identifier')continue;
+  const offset=month.init;
+  if(offset?.type!=='BinaryExpression'||offset.operator!=='+'||offset.right.type!=='Literal'||offset.right.value!==1)continue;
+  const dateReceiver=(call,method)=>{
+   const member=call?.callee;
+   if(call?.type==='CallExpression'&&!call.arguments.length&&member?.type==='MemberExpression'&&
+      !member.computed&&member.property.name===method&&member.object.type==='Identifier')return member.object.name;
+  };
+  const receiver=dateReceiver(offset.left,'getMonth');
+  if(!receiver||dateReceiver(day.init,'getDate')!==receiver)continue;
+  function predicate(node){
+   if(node.type==='LogicalExpression'&&node.operator==='&&'){
+    const left=predicate(node.left),right=predicate(node.right);
+    return left&&right?(m,d)=>left(m,d)&&right(m,d):null;
+   }
+   if(node.type!=='BinaryExpression'||node.left.type!=='Identifier'||
+      node.right.type!=='Literal'||!Number.isInteger(node.right.value))return null;
+   const name=node.left.name,bound=node.right.value;
+   if(name===month.id.name&&node.operator==='===')return m=>m===bound;
+   if(name!==day.id.name)return null;
+   switch(node.operator){
+    case '===': return (_,d)=>d===bound;
+    case '>=': return (_,d)=>d>=bound;
+    case '<=': return (_,d)=>d<=bound;
+    default: return null;
+   }
+  }
+  const branches=statements.slice(firstBranch,-1).map(node=>{
+   const mode=node.consequent?.argument;
+   if(node.type!=='IfStatement'||node.alternate||node.consequent.type!=='ReturnStatement'||
+      mode?.type!=='Literal'||!Object.hasOwn(labels,mode.value))return null;
+   const matches=predicate(node.test);
+   return matches?{matches,label:labels[mode.value]}:null;
+  });
+  if(branches.some(branch=>!branch))continue;
+  let previous,range;
+  for(let date=new Date(Date.UTC(year,0,1));date.getUTCFullYear()===year;date.setUTCDate(date.getUTCDate()+1)){
+   const branch=branches.find(item=>item.matches(date.getUTCMonth()+1,date.getUTCDate()));
+   if(branch){
+    const iso=date.toISOString().slice(0,10);
+    if(branch===previous)range.end=iso;
+    else{range={start:iso,end:iso,label:branch.label,recurring:true};ranges.push(range);}
    }
    previous=branch;
   }
