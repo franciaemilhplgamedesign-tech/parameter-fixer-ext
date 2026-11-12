@@ -62,7 +62,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
    if(analyzer){
     const analysis=analyzer.analyze(html);
-    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis),...inspectHolidayModeCalendar(analysis,previewYear));
+    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis),...inspectHolidayModeCalendar(analysis,previewYear),...inspectAnnualObjectPromos(analysis,previewYear));
     for(const node of analysis.nodes){
      const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
      if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
@@ -295,42 +295,7 @@ function inspectFixedMonthCalendar(analysis){
   if(day.id.type!=='Identifier'||dateReceiver(day.init,'getDate')!==receiver)continue;
   const fallback=body.pop();
   if(fallback?.type!=='ReturnStatement'||fallback.argument?.type!=='Literal'||fallback.argument.value!==null||!body.length)continue;
-  function dayTest(node){
-   if(node.type==='LogicalExpression'&&node.operator==='&&'){
-    const left=dayTest(node.left),right=dayTest(node.right);
-    return left&&right?value=>left(value)&&right(value):null;
-   }
-   if(node.type!=='BinaryExpression'||node.left.type!=='Identifier'||node.left.name!==day.id.name||
-      node.right.type!=='Literal'||!Number.isInteger(node.right.value))return null;
-   const bound=node.right.value;
-   switch(node.operator){
-    case '===': return value=>value===bound;
-    case '>=': return value=>value>=bound;
-    case '<=': return value=>value<=bound;
-    default: return null;
-   }
-  }
-  const branches=[];
-  for(const branch of body){
-   if(branch.type!=='IfStatement'||branch.alternate||branch.consequent.type!=='ReturnStatement'||
-      branch.consequent.argument?.type!=='ObjectExpression')break;
-   const matches=dayTest(branch.test),promo=analysis.resolve(branch.consequent.argument)?.value;
-   const label=promo?.name||promo?.label||promo?.id;
-   if(!matches||typeof label!=='string'||!label.trim())break;
-   branches.push({matches,label});
-  }
-  if(branches.length!==body.length)continue;
-  let previous,range;
-  const last=new Date(Date.UTC(year,month+1,0)).getUTCDate();
-  for(let day=1;day<=last;day++){
-   const branch=branches.find(item=>item.matches(day));
-   if(branch){
-    const date=new Date(Date.UTC(year,month,day)).toISOString().slice(0,10);
-    if(branch===previous)range.end=date;
-    else{range={start:date,end:date,label:branch.label};ranges.push(range);}
-   }
-   previous=branch;
-  }
+  ranges.push(...inspectDayPromoBranches(analysis,body,day.id.name,year,month));
  }
  return ranges;
 }
@@ -397,6 +362,75 @@ function inspectHolidayModeCalendar(analysis,year){
    }
    previous=branch;
   }
+ }
+ return ranges;
+}
+
+function inspectDayPromoBranches(analysis,body,dayName,year,month,recurring=false){
+ const ranges=[];
+  function dayTest(node){
+   if(node.type==='LogicalExpression'&&node.operator==='&&'){
+    const left=dayTest(node.left),right=dayTest(node.right);
+    return left&&right?value=>left(value)&&right(value):null;
+   }
+   if(node.type!=='BinaryExpression'||node.left.type!=='Identifier'||node.left.name!==dayName||
+      node.right.type!=='Literal'||!Number.isInteger(node.right.value))return null;
+   const bound=node.right.value;
+   switch(node.operator){
+    case '===': return value=>value===bound;
+    case '>=': return value=>value>=bound;
+    case '<=': return value=>value<=bound;
+    default: return null;
+   }
+  }
+  const branches=[];
+  for(const branch of body){
+   if(branch.type!=='IfStatement'||branch.alternate||branch.consequent.type!=='ReturnStatement'||
+      branch.consequent.argument?.type!=='ObjectExpression')break;
+   const matches=dayTest(branch.test),promo=analysis.resolve(branch.consequent.argument)?.value;
+   const label=promo?.name||promo?.label||promo?.id;
+   if(!matches||typeof label!=='string'||!label.trim())break;
+   branches.push({matches,label});
+  }
+  if(branches.length!==body.length)return [];
+  let previous,range;
+  const last=new Date(Date.UTC(year,month+1,0)).getUTCDate();
+  for(let day=1;day<=last;day++){
+   const branch=branches.find(item=>item.matches(day));
+   if(branch){
+    const date=new Date(Date.UTC(year,month,day)).toISOString().slice(0,10);
+    if(branch===previous)range.end=date;
+    else{range={start:date,end:date,label:branch.label,...(recurring?{recurring:true}:{})};ranges.push(range);}
+   }
+   previous=branch;
+  }
+ return ranges;
+}
+
+// Revised promo selectors return a default offer outside the annual month block.
+function inspectAnnualObjectPromos(analysis,year){
+ const ranges=[];
+ for(const fn of analysis.nodes){
+  if(fn.type!=='FunctionDeclaration'||fn.id?.name!=='getPromo'||fn.body.type!=='BlockStatement')continue;
+  const fallback=fn.body.body.at(-1);
+  if(fallback?.type!=='ReturnStatement'||fallback.argument?.type!=='ObjectExpression')continue;
+  const defaultPromo=analysis.resolve(fallback.argument)?.value;
+  if(defaultPromo?.isDefault!==true)continue;
+  const monthBlock=fn.body.body.at(-2),test=monthBlock?.test;
+  if(monthBlock?.type!=='IfStatement'||monthBlock.alternate||test?.type!=='BinaryExpression'||
+     test.operator!=='==='||test.right.type!=='Literal'||!Number.isInteger(test.right.value)||
+     test.right.value<0||test.right.value>11||monthBlock.consequent.type!=='BlockStatement')continue;
+  const call=test.left;
+  if(call.type!=='CallExpression'||call.arguments.length||call.callee.type!=='MemberExpression'||
+     call.callee.computed||call.callee.property.name!=='getMonth'||call.callee.object.type!=='Identifier')continue;
+  const [declaration,...body]=monthBlock.consequent.body;
+  if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const'||declaration.declarations.length!==1)continue;
+  const day=declaration.declarations[0],dateCall=day.init;
+  if(day.id.type!=='Identifier'||dateCall?.type!=='CallExpression'||dateCall.arguments.length||
+     dateCall.callee.type!=='MemberExpression'||dateCall.callee.computed||
+     dateCall.callee.property.name!=='getDate'||dateCall.callee.object.name!==call.callee.object.name)continue;
+  if(!body.length)continue;
+  ranges.push(...inspectDayPromoBranches(analysis,body,day.id.name,year,test.right.value,true));
  }
  return ranges;
 }
