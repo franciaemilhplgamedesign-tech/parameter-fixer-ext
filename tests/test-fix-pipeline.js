@@ -12,6 +12,10 @@ const fixture='<html><head><script src="mraid.js"></script></head><body><img src
  const decodedChild=c.CreativeSource.analyze(existing.html).documents.find(d=>d.includes('Crème'));assert(decodedChild&&decodedChild.includes('ecCreative_clickTag1'));assert(!decodedChild.includes('const clickTag1'));
  const assetMap='<html><head></head><script>window.PA_ASSETS={card:{src:'+JSON.stringify(rawChild).replace(/<\//g,'<\\/')+'}};const endscene={mode:"html",htmlId:"card"};</'+'script></html>';
  const assetResult=await c.fixCreativePipeline(assetMap,'file:///C:/x_mip_test.html',{creativeType:'mip'});assert.equal(assetResult.report.findings.find(f=>f.id==='end-scene').status,'pass');
+ const inactive='<html><head></head><body><!--<img src="pgif.gif">--><script>const label="ready";</script></body></html>';
+ c.fetch=async()=>{throw Error('Inactive asset must not be fetched')};
+ const inactiveResult=await c.fixCreativePipeline(inactive,'file:///C:/test_sip.html',{creativeType:'sip'});
+ assert.equal(inactiveResult.unresolved.length,0);assert.equal(inactiveResult.report.findings.find(f=>f.id==='assets').status,'pass');
  c.fetch=async()=>{throw Error('denied')};const failed=await c.fixCreativePipeline(fixture,'file:///C:/test_mip.html',{creativeType:'mip'});assert(failed.report.errors>0);assert(failed.unresolved.length);
  const page=fs.readFileSync(root+'popup.html','utf8');assert(page.includes('id="fix-all"'));for(const old of ['runtime-fix','mraid-fix','compress-current'])assert(!page.includes('id="'+old+'"'));console.log('Passed one-action MRAID/aliases/Base64/assets/safeguards/compression/recheck, strict reserved-name checks, unresolved errors and consolidated controls.');
 })().catch(e=>{console.error(e);process.exitCode=1});

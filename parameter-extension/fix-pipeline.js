@@ -30,12 +30,13 @@ async function fixCreativePipeline(input,sourceUrl,options={},progress=()=>{}){
  async function inlineAssets(html,base,assetDepth=0){
   if(assetDepth>3){unresolved.push('Nested asset depth exceeded.');return html;}
   const refs=[];
-  for(const m of html.matchAll(/<(img|audio|video|source|script|link)\b[^>]*?\b(src|poster|href)\s*=\s*(["'])([^"']+)\3[^>]*>/gi)){
+  const assetSource=html.replace(/<!--[\s\S]*?-->/g,'');
+  for(const m of assetSource.matchAll(/<(img|audio|video|source|script|link)\b[^>]*?\b(src|poster|href)\s*=\s*(["'])([^"']+)\3[^>]*>/gi)){
    const value=m[4];if(/^(?:blob:|#)/i.test(value)||(/^data:/i.test(value)&&/;base64,/i.test(value))||/(?:^|\/)mraid(?:\.min)?\.js$/i.test(value))continue;
    if(m[1].toLowerCase()==='link'&&!/\brel=["']stylesheet["']/i.test(m[0]))continue;
    refs.push({value,tag:m[1].toLowerCase()});
   }
-  for(const m of html.matchAll(/url\(\s*(["']?)([^\s)'"\n]+)\1\s*\)/gi))if(!/^(?:data:|blob:|#)/i.test(m[2].replace(/&amp;/gi,'&').replace(/&amp;/gi,'&').replace(/&quot;|&#34;|&apos;|&#39;/gi,'').replace(/^["']/,'').trim())&&!m[2].includes('${'))refs.push({value:m[2],tag:'asset'});
+  for(const m of assetSource.matchAll(/url\(\s*(["']?)([^\s)'"\n]+)\1\s*\)/gi))if(!/^(?:data:|blob:|#)/i.test(m[2].replace(/&amp;/gi,'&').replace(/&amp;/gi,'&').replace(/&quot;|&#34;|&apos;|&#39;/gi,'').replace(/^["']/,'').trim())&&!m[2].includes('${'))refs.push({value:m[2],tag:'asset'});
   for(const ref of [...new Map(refs.map(r=>[r.value,r])).values()]){
    try{
     const url=new URL(ref.value,base);if(!['file:','http:','https:','data:'].includes(url.protocol))throw Error('unsupported URL');

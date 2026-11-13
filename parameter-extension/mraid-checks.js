@@ -60,7 +60,7 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  add('tap','Touch/click duplication',touch&&!/(?:lastTap|debounc|preventDefault|timeStamp)/i.test(code)?'warning':'pass',touch?'Multiple input types detected; verify one CTA per tap.':'No overlapping touchend/click handling detected.');
  const remotes=[],dynamicAssets=[];
  // Inspect actual markup separately from JavaScript template source.
- const markup=html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,tag=>tag.slice(0,tag.indexOf('>')+1)+'</script>');
+ const markup=html.replace(/<!--[\s\S]*?-->/g,'').replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,tag=>tag.slice(0,tag.indexOf('>')+1)+'</script>');
  for(const m of markup.matchAll(/<(?:script|link|img|video|audio|source)\b[^>]*?\b(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi)){
   if(/(?:^|\/)mraid(?:\.min)?\.js(?:[?#].*)?$/i.test(m[1]))continue;
   if(!/^(?:data:|blob:|#)/i.test(m[1]))remotes.push(m[1]);
