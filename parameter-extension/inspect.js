@@ -62,7 +62,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
    if(analyzer){
     const analysis=analyzer.analyze(html);
-    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis),...inspectHolidayModeCalendar(analysis,previewYear),...inspectAnnualObjectPromos(analysis,previewYear));
+    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis),...inspectHolidayModeCalendar(analysis,previewYear),...inspectAnnualObjectPromos(analysis,previewYear),...inspectBooleanDateCalendar(analysis,previewYear));
     for(const node of analysis.nodes){
      const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
      if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
@@ -431,6 +431,67 @@ function inspectAnnualObjectPromos(analysis,year){
      dateCall.callee.property.name!=='getDate'||dateCall.callee.object.name!==call.callee.object.name)continue;
   if(!body.length)continue;
   ranges.push(...inspectDayPromoBranches(analysis,body,day.id.name,year,test.right.value,true));
+ }
+ return ranges;
+}
+
+
+// Boolean holiday selectors often alias getMonth/getDate in a single declaration.
+function inspectBooleanDateCalendar(analysis,year){
+ const ranges=[];
+ for(const fn of analysis.nodes){
+  if(!['ArrowFunctionExpression','FunctionDeclaration','FunctionExpression'].includes(fn.type)||fn.body?.type!=='BlockStatement')continue;
+  const statements=fn.body.body;
+  if(statements.length<2||statements.length>3)continue;
+  if(statements.length===3){
+   const override=statements[0];
+   if(override.type!=='IfStatement'||override.alternate||override.consequent.type!=='BlockStatement')continue;
+   const [declaration,...branches]=override.consequent.body;
+   const parameter=declaration?.declarations?.[0];
+   if(declaration?.type!=='VariableDeclaration'||declaration.declarations.length!==1||
+      parameter.id.type!=='Identifier'||parameter.init?.type!=='NewExpression'||parameter.init.callee.name!=='URLSearchParams')continue;
+   if(!branches.length||!branches.every(branch=>{
+    const call=branch.test?.left;
+    return branch.type==='IfStatement'&&!branch.alternate&&branch.test?.type==='BinaryExpression'&&
+     branch.test.operator==='==='&&['true','false'].includes(branch.test.right?.value)&&
+     call?.type==='CallExpression'&&call.callee.type==='MemberExpression'&&!call.callee.computed&&
+     call.callee.object.name===parameter.id.name&&call.callee.property.name==='get'&&
+     call.arguments.length===1&&call.arguments[0].type==='Literal'&&
+     branch.consequent.type==='ReturnStatement'&&branch.consequent.argument?.type==='UnaryExpression'&&
+     branch.consequent.argument.operator==='!'&&[0,1].includes(branch.consequent.argument.argument?.value);
+   }))continue;
+  }
+  const [declaration,returned]=statements.slice(-2);
+  if(declaration.type!=='VariableDeclaration'||declaration.kind!=='const'||declaration.declarations.length!==3||
+     returned.type!=='ReturnStatement')continue;
+  const [date,month,day]=declaration.declarations;
+  if([date,month,day].some(item=>item.id.type!=='Identifier')||
+     date.init?.type!=='NewExpression'||date.init.callee.name!=='Date'||date.init.arguments.length)continue;
+  function getter(item,method){
+   const call=item.init;
+   return call?.type==='CallExpression'&&!call.arguments.length&&call.callee.type==='MemberExpression'&&
+    !call.callee.computed&&call.callee.object.name===date.id.name&&call.callee.property.name===method;
+  }
+  if(!getter(month,'getMonth')||!getter(day,'getDate'))continue;
+  const tests=[];
+  function collect(node){
+   if(node?.type==='LogicalExpression'&&node.operator==='&&')return collect(node.left)&&collect(node.right);
+   if(node?.type!=='BinaryExpression'||node.left.type!=='Identifier'||node.right.type!=='Literal'||
+      !Number.isInteger(node.right.value)||!['===','>=','<='].includes(node.operator))return false;
+   tests.push({name:node.left.name,operator:node.operator,value:node.right.value});
+   return true;
+  }
+  if(!collect(returned.argument))continue;
+  const months=tests.filter(test=>test.name===month.id.name);
+  if(months.length!==1||months[0].operator!=='==='||months[0].value<0||months[0].value>11)continue;
+  const days=tests.filter(test=>test.name===day.id.name);
+  if(!days.length||days.length+1!==tests.length)continue;
+  const calendarMonth=months[0].value,last=new Date(Date.UTC(year,calendarMonth+1,0)).getUTCDate();
+  const matches=d=>days.every(test=>test.operator==='==='?d===test.value:test.operator==='>='?d>=test.value:d<=test.value);
+  const hits=Array.from({length:last},(_,index)=>index+1).filter(matches);
+  if(!hits.length)continue;
+  const iso=d=>new Date(Date.UTC(year,calendarMonth,d)).toISOString().slice(0,10);
+  ranges.push({start:iso(hits[0]),end:iso(hits.at(-1)),label:'Annual promo',recurring:true});
  }
  return ranges;
 }
