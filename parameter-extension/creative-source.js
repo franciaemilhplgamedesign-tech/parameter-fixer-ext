@@ -120,7 +120,7 @@ var CreativeSource=(()=>{
    if(typeof v==='string'&&/^data:text\/html(?:;charset=[^;,]+)?;base64,/i.test(v))try{v=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(v.slice(v.indexOf(',')+1)),c=>c.charCodeAt(0)));}catch(_){v=null;}
    if(typeof v==='string'&&v.length<12000000&&/<(?:!doctype|html|body|head)\b/i.test(v))documents.add(v);
   }
-  return {nodes,parents,resolve,origin,origins,property,documents:[...documents],failures};
+  return {nodes,parents,binding:lookup,resolve,origin,origins,property,documents:[...documents],failures};
  }
  return {analyze};
 })();

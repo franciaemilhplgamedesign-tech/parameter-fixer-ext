@@ -94,10 +94,12 @@ function checkMraidHtml(html,sourceUrl='',creativeType='auto'){
  add('embedded','Embedded document coverage',encoded?'warning':'pass',encoded?'Embedded/encoded HTML detected. This report covers the outer source; inspect each decoded end card separately.':'No supported embedded-document patterns detected.');
  const endScene=checkMipEndScenes(html,sourceUrl,analysis,profile.type==='mip');
  if(endScene)add('end-scene', 'MIP end-scene Base64 packaging (project policy)',endScene.status,endScene.description,endScene.evidence);
+ const languageDeclaration=checkSupportedLanguageDeclaration(html,analysis);
+ add('acs-languages','Supported language declaration (client rule)',languageDeclaration.status,languageDeclaration.description,languageDeclaration.evidence);
  const errors=findings.filter(f=>f.status==='error').length,warnings=findings.filter(f=>f.status==='warning').length;
  return {sourceUrl,bytes,profile,checkedAt:Date.now(),findings,errors,warnings,issues:errors+warnings,scope:'Static source inspection, not MRAID certification. Minified aliases, comments and dynamically constructed code require manual review.'};
 }
-if(typeof module!=='undefined')module.exports={isLocalCreativeUrl,checkMraidHtml,creativeSizeProfile,formatCreativeSize};
+if(typeof module!=='undefined')module.exports={isLocalCreativeUrl,checkMraidHtml,creativeSizeProfile,formatCreativeSize,checkSupportedLanguageDeclaration};
 
 function compressedEndSceneWrapper(value){
  if(typeof value!=='string')return false;
@@ -199,4 +201,75 @@ function checkMipEndScenes(html,sourceUrl='',analysis=null,selectedMip=false){
  if(problems.length)return {status:'error',description:problems.length+' MIP end-scene source(s) violate the Base64-only project policy: '+problems.map(p=>p.label+' ('+p.reason+')').join('; ')+'. Encode the end-scene file as Base64; Base64 assets inside raw HTML do not make the HTML container compliant.',evidence:html.slice(problems[0].index,problems[0].index+180)};
  if(unknown.length)return {status:'warning',description:passed.length+' Base64 source(s) verified; '+unknown.length+' dynamic/blob source(s) cannot be verified. Resolve their payloads before approval.',evidence:''};
  return {status:'pass',description:passed.length+' MIP end-scene source(s) verified as Base64 packaged'+(passed.some(item=>item.compressed)?', including a recognized Base64-gzip decompression wrapper':'')+'. Decoded content and successful decompression still require runtime/MRAID checks.',evidence:''};
+}
+
+
+function checkSupportedLanguageDeclaration(html,analysis){
+ const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
+ analysis=analysis||analyzer?.analyze(html);
+ const codes=new Set(['en']);
+ let uncertain=!analysis,hasLanguageReader=false,foundTranslationTable=false;
+ let remainingBudget=16000000;
+ for(const script of html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi))if(!/(?:^|\/)mraid(?:\.min)?\.js(?:[?#].*)?$/i.test(script[1]))uncertain=true;
+ const inspected=new Set();
+ function inspectSource(current,depth){
+  if(!current)return;
+  if(current.failures.length)uncertain=true;
+  function languageInput(node,seen=new Set()){
+   if(!node||seen.has(node))return false;
+   seen=new Set(seen);seen.add(node);
+   if(node.type==='Identifier')return languageInput(current.binding?.(node,node.name),seen);
+   if(node.type==='MemberExpression'){
+    if(['language','languages'].includes(current.property(node))&&
+       (node.object.name==='navigator'||node.object.type==='MemberExpression'&&current.property(node.object)==='navigator'))return true;
+    return languageInput(node.object,seen);
+   }
+   if(node.type==='CallExpression'){
+    if(node.callee.type==='MemberExpression'&&current.property(node.callee)==='get'&&node.arguments[0]?.value==='language')return true;
+    if(node.callee.type==='MemberExpression')return languageInput(node.callee.object,seen);
+   }
+   if(node.type==='LogicalExpression')return languageInput(node.left,seen)||languageInput(node.right,seen);
+   if(node.type==='ConditionalExpression')return languageInput(node.consequent,seen)||languageInput(node.alternate,seen);
+   return false;
+  }
+  for(const node of current.nodes){
+   if(languageInput(node))hasLanguageReader=true;
+   if(node.type!=='MemberExpression'||!node.computed||!languageInput(node.property))continue;
+   const table=current.resolve(node.object)?.value;
+   if(!table||Array.isArray(table)||typeof table!=='object'){uncertain=true;continue;}
+   const hasCopy=(value,depth=0)=>typeof value==='string'?!!value.trim():!!value&&typeof value==='object'&&depth<4&&Object.values(value).some(item=>hasCopy(item,depth+1));
+   const keys=Object.keys(table).filter(key=>/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(key)&&hasCopy(table[key]));
+   if(!keys.length){uncertain=true;continue;}
+   foundTranslationTable=true;
+   for(const key of keys)codes.add(key.toLowerCase());
+  }
+  if(depth>=2){if(current.documents.length)uncertain=true;return;}
+  for(const document of current.documents){
+   if(inspected.has(document))continue;
+   if(document.length>remainingBudget){uncertain=true;continue;}
+   remainingBudget-=document.length;
+   inspected.add(document);
+   inspectSource(analyzer?.analyze(document),depth+1);
+  }
+ }
+ inspectSource(analysis,0);
+ if(hasLanguageReader&&!foundTranslationTable)uncertain=true;
+ const markup=html.replace(/<!--[\s\S]*?-->/g,'').replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'');
+ const attributes=tag=>{
+  const result={};
+  for(const match of tag.matchAll(/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g))result[match[1].toLowerCase()]=match[2]??match[3]??match[4];
+  return result;
+ };
+ const declarations=[...markup.matchAll(/<meta\b[^>]*>/gi)].filter(match=>attributes(match[0]).name==='acs-languages');
+ const expected=uncertain?null:[...codes].sort((a,b)=>a==='en'?-1:b==='en'?1:a.localeCompare(b));
+ const result=(status,description)=>({status,description,expected,evidence:declarations[0]?.[0]||''});
+ if(declarations.length!==1)return result('error','Declare exactly one <meta name="acs-languages" content="en"> using the actual supported codes. English-only creatives use en.');
+ const content=attributes(declarations[0][0]).content||'';
+ const declared=content.split(',');
+ if(!/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*(?:,[a-z]{2,3}(?:-[a-z0-9]{2,8})*)*$/.test(content)||
+    !declared.includes('en')||new Set(declared).size!==declared.length)return result('error','Language codes must be lowercase and comma-separated, include en, and have no spaces or duplicates.');
+ if(uncertain)return result('warning','Declaration format passes. Actual language support could not be fully resolved from the language reader, runtime data or embedded source. Verify device-language and ?language switching against the declared codes.');
+ const missing=expected.filter(code=>!declared.includes(code)),extra=declared.filter(code=>!expected.includes(code));
+ if(missing.length||extra.length)return result('error','Language declaration does not match inspected support. Expected '+expected.join(',')+'.'+(missing.length?' Missing '+missing.join(',')+'.':'')+(extra.length?' Extra '+extra.join(',')+'.':''));
+ return result('pass','Declared codes match inspected language support: '+expected.join(',')+'.');
 }

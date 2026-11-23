@@ -101,6 +101,13 @@ async function fixCreativePipeline(input,sourceUrl,options={},progress=()=>{}){
  const entry={origHTML:html,extCallViolations:[],nonB64B122Violations:[],blockingViolations:[]};
  progress('Applying MRAID fixes…');runFix(entry);html=entry.fixedHTML;
  html=addRuntimeSafeguards(html,{network:!!options.network,webgl:options.webgl!==false}).html;
+ const languageCheck=checkSupportedLanguageDeclaration(html,analyzer.analyze(html));
+ if(languageCheck.expected&&languageCheck.status==='error'){
+  const declaration='<meta name="acs-languages" content="'+languageCheck.expected.join(',')+'">';
+  html=html.replace(/<meta\b[^>]*>/gi,tag=>/\bname\s*=\s*(?:"acs-languages"|'acs-languages'|acs-languages(?=\s|\/?>))/i.test(tag)?'':tag);
+  html=html.replace(/<head\b[^>]*>/i,head=>head+'\n'+declaration);
+  changes.push('Updated supported language declaration to '+languageCheck.expected.join(',')+'.');
+ }
  progress('Compressing the fixed HTML…');const compressed=await compressCreativeHtml(html,{images:!!options.images,quality:options.quality??.82,maxEdge:options.maxEdge||0},progress);html=compressed.html;
  const report=checkMraidHtml(html,sourceUrl,options.creativeType||'auto');
  return {html,report,changes:[...changes,...(entry.diffs||[])],unresolved,beforeBytes:new TextEncoder().encode(input).length,afterBytes:report.bytes};
