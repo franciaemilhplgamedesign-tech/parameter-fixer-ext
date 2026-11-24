@@ -4,16 +4,17 @@ function validDate(value) {
   date.setFullYear(y,m-1,d);date.setHours(12,0,0,0);
   return date.getFullYear()===y && date.getMonth()===m-1 && date.getDate()===d;
 }
-function updateCreativeReference(reference,date,language) {
+function updateCreativeReference(reference,date,language,channel) {
   const hashAt=reference.indexOf('#'),hash=hashAt<0?'':reference.slice(hashAt);
   const body=hashAt<0?reference:reference.slice(0,hashAt),queryAt=body.indexOf('?');
   const path=queryAt<0?body:body.slice(0,queryAt);
   const query=new URLSearchParams(queryAt<0?'':body.slice(queryAt+1));
   query.delete('date');if(date)query.set('date',date);
   if(language!==undefined){query.delete('language');if(language)query.set('language',language);}
+  if(channel!==undefined){query.delete('channel');if(channel)query.set('channel',channel);}
   return path+(query.size?'?'+query.toString():'')+hash;
 }
-function updatePreviewUrl(input,date,language) {
+function updatePreviewUrl(input,date,language,channel) {
   if(date && !validDate(date))throw new Error('Choose a valid date.');
   if(language && !/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(language))throw new Error('Use a language code such as en or en-US.');
   const url=new URL(input);
@@ -22,12 +23,13 @@ function updatePreviewUrl(input,date,language) {
     const entries=[...url.searchParams.entries()];let count=0;
     const query=new URLSearchParams(),effectiveLanguage=language===undefined?url.searchParams.get('language'):language;
     for(const [key,value] of entries){
-      if(key==='date'||key==='language')continue;
-      if(/^h(?:[1-9]\d*)?$/.test(key) && value){query.append(key,updateCreativeReference(value,'',language===undefined?undefined:''));count++;}
+      if(key==='date'||key==='language'||key==='channel'&&channel!==undefined)continue;
+      if(/^h(?:[1-9]\d*)?$/.test(key) && value){query.append(key,updateCreativeReference(value,'',language===undefined?undefined:'',channel===undefined?undefined:''));count++;}
       else query.append(key,value);
     }
     if(!count)throw new Error('No HTML iteration entries found in this AppLovin URL.');
     if(date)query.set('date',date);if(effectiveLanguage)query.set('language',effectiveLanguage);
+    if(channel)query.set('channel',channel);
     url.search=query.toString();
     return {url:url.href,count,label:count+' AppLovin iteration'+(count===1?'':'s')+' using one preview URL'};
   }
@@ -37,6 +39,7 @@ function updatePreviewUrl(input,date,language) {
   }
   url.searchParams.delete('date');if(date)url.searchParams.set('date',date);
   if(language!==undefined){url.searchParams.delete('language');if(language)url.searchParams.set('language',language);}
+  if(channel!==undefined){url.searchParams.delete('channel');if(channel)url.searchParams.set('channel',channel);}
   return {url:url.href,count:1,label:local?'Localhost preview':url.protocol==='file:'?'Local HTML file':(/\.html?$/i.test(url.pathname)?'Direct HTML preview':'Hosted preview')};
 }
 if(typeof module!=='undefined')module.exports={validDate,updateCreativeReference,updatePreviewUrl};

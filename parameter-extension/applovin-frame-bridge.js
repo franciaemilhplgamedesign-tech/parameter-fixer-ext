@@ -7,7 +7,7 @@
   try{
    const url=new URL(value,location.href),query=new URLSearchParams(location.search);
    if(url.origin!==location.origin||!/^\/phaser\//i.test(url.pathname))return value;
-   for(const key of ['date','language'])if(query.has(key)){const all=query.getAll(key);url.searchParams.delete(key);url.searchParams.set(key,all[all.length-1]);}
+   for(const key of ['date','language','channel'])if(query.has(key)){const all=query.getAll(key);url.searchParams.delete(key);url.searchParams.set(key,all[all.length-1]);}
    return url.href;
   }catch(_){return value;}
  }

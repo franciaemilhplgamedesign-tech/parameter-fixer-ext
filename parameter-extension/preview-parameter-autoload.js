@@ -1,1 +1,1 @@
-installPreviewUrlScope(['date','language']);
+installPreviewUrlScope(['date','language','channel']);

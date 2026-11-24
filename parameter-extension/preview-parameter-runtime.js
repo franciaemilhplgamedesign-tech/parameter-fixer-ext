@@ -1,6 +1,6 @@
 // Shared by fixed HTML and the extension's early, same-origin frame adapter.
 function installPreviewUrlScope(allowed){
- var keys=allowed.filter(function(key){return key==='date'||key==='language';});
+ var keys=allowed.filter(function(key){return key==='date'||key==='language'||key==='channel';});
  var previous=window.__ecPreviewParameter;
  function resolve(name){
   var current=window,result=null,found=false;

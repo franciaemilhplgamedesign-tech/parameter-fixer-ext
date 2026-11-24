@@ -1,5 +1,6 @@
 const dateInput=document.getElementById('date'),statusEl=document.getElementById('status');
 const languageInput=document.getElementById('language');
+const channelInput=document.getElementById('channel');
 const customLanguage=document.getElementById('custom-language'),autoRefresh=document.getElementById('auto-refresh');
 const languages={en:'English',it:'Italian',br:'Brazilian Portuguese (creative code)',es:'Spanish',fr:'French',de:'German',pt:'Portuguese','pt-BR':'Portuguese (Brazil)',nl:'Dutch',pl:'Polish',ru:'Russian',uk:'Ukrainian',sv:'Swedish',da:'Danish',no:'Norwegian',fi:'Finnish',cs:'Czech',sk:'Slovak',hu:'Hungarian',ro:'Romanian',el:'Greek',tr:'Turkish',ar:'Arabic',he:'Hebrew',hi:'Hindi',bn:'Bengali',ur:'Urdu',zh:'Chinese','zh-CN':'Chinese (Simplified)','zh-TW':'Chinese (Traditional)',ja:'Japanese',ko:'Korean',id:'Indonesian',ms:'Malay',th:'Thai',vi:'Vietnamese',tl:'Filipino',sw:'Swahili',af:'Afrikaans',fa:'Persian',ta:'Tamil',te:'Telugu',mr:'Marathi'};
 for(const [code,label] of Object.entries(languages)){const option=document.createElement('option');option.value=code;option.textContent=label+' ('+code+')';languageInput.appendChild(option);}
@@ -30,6 +31,7 @@ connectRangeNavigation(holidaySelect,document.getElementById('holiday-prev'),doc
     const iterationParams=new URLSearchParams(first?.[1].split('?')[1]?.split('#')[0]||'');
     const existing=url.searchParams.has('date')?url.searchParams.getAll('date').at(-1):iterationParams.get('date');
     const existingLanguage=(url.searchParams.has('language')?url.searchParams.getAll('language').at(-1):iterationParams.get('language'))||'';
+    channelInput.value=(url.searchParams.has('channel')?url.searchParams.getAll('channel').at(-1):iterationParams.get('channel'))||'';
     languageInput.value=existingLanguage && !languages[existingLanguage]?'custom':existingLanguage;
     customLanguage.value=languageInput.value==='custom'?existingLanguage:'';showCustom();
     previewSpoof.checked=saved.previewSpoof!==false;previewUrlParameters.checked=saved.previewUrlParameters!==false;
@@ -50,7 +52,7 @@ async function apply(date){
   if(date!=='' && !validDate(date))throw new Error('Choose a valid date.');
   const latest=await chrome.tabs.get(currentTab.id);
   if(selectedLanguage()&&!/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(selectedLanguage()))throw new Error('Use a language code such as en or en-US.');
-  const result=updatePreviewUrl(latest.url,previewUrlParameters.checked?date:'',previewUrlParameters.checked?selectedLanguage():'');
+  const result=updatePreviewUrl(latest.url,previewUrlParameters.checked?date:'',previewUrlParameters.checked?selectedLanguage():'',channelInput.value.trim());
   const targetUrl=new URL(result.url);
   const config={enabled:previewSpoof.checked,date,language:selectedLanguage(),scope:targetUrl.origin+targetUrl.pathname};
   await chrome.scripting.executeScript({target:{tabId:currentTab.id},func:config=>{if(config.enabled)sessionStorage.setItem('ecfixit-preview-override-v1',JSON.stringify(config));else sessionStorage.removeItem('ecfixit-preview-override-v1');},args:[config]});
@@ -67,6 +69,7 @@ dateInput.addEventListener('change',onPreviewChange);
 dateInput.addEventListener('change',()=>{if(validDate(dateInput.value)&&Number(dateInput.value.slice(0,4))!==holidayPreviewYear)scanHolidays();});
 languageInput.addEventListener('change',()=>{showCustom();if(languageInput.value!=='custom')onPreviewChange();});
 customLanguage.addEventListener('change',onPreviewChange);
+channelInput.addEventListener('change',onPreviewChange);
 autoRefresh.addEventListener('change',async()=>{
  clearTimeout(autoTimer);buttons[0].hidden=autoRefresh.checked;
  await chrome.storage.local.set({autoRefresh:autoRefresh.checked});
