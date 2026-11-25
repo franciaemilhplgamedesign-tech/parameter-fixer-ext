@@ -62,7 +62,7 @@ function inspectCreativeHtml(html,depth=0,previewYear=new Date().getFullYear()) 
    const analyzer=typeof CreativeSource!=='undefined'?CreativeSource:typeof require==='function'?require('./creative-source'):null;
    if(analyzer){
     const analysis=analyzer.analyze(html);
-    ranges.push(...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis),...inspectHolidayModeCalendar(analysis,previewYear),...inspectAnnualObjectPromos(analysis,previewYear),...inspectBooleanDateCalendar(analysis,previewYear));
+    ranges.push(...inspectPromoTupleCalendar(analysis),...inspectNestedAnnualCalendar(analysis,previewYear),...inspectGuardedAnnualCalendar(analysis,previewYear),...inspectFixedMonthCalendar(analysis),...inspectHolidayModeCalendar(analysis,previewYear),...inspectAnnualObjectPromos(analysis,previewYear),...inspectBooleanDateCalendar(analysis,previewYear));
     for(const node of analysis.nodes){
      const text=node.type==='Literal'&&typeof node.value==='string'?node.value:node.type==='TemplateLiteral'&&!node.expressions.length?node.quasis[0].value.cooked:null;
      if(text&&/^Year,Start Date,End Date,Promo(?:,|\r?$)/m.test(text))ranges.push(...inspectCsvCalendar(text));
@@ -492,6 +492,25 @@ function inspectBooleanDateCalendar(analysis,year){
   if(!hits.length)continue;
   const iso=d=>new Date(Date.UTC(year,calendarMonth,d)).toISOString().slice(0,10);
   ranges.push({start:iso(hits[0]),end:iso(hits.at(-1)),label:'Annual promo',recurring:true});
+ }
+ return ranges;
+}
+
+
+// Four-column schedules store start, end, category, and display text.
+function inspectPromoTupleCalendar(analysis){
+ const ranges=[];
+ const valid=value=>{
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+  const date=new Date(value+'T12:00:00Z');
+  return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===value;
+ };
+ for(const node of analysis.nodes){
+  if(node.type!=='ArrayExpression'||node.elements.length!==4||
+     !node.elements.every(item=>item?.type==='Literal'&&typeof item.value==='string'))continue;
+  const [start,end,category,label]=node.elements.map(item=>item.value);
+  if(!valid(start)||!valid(end)||start>end||!category.trim()||!label.trim())continue;
+  ranges.push({start,end,label});
  }
  return ranges;
 }

@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
+const {inspectCreativeHtml}=require('../parameter-extension/inspect');
+const inspect=row=>inspectCreativeHtml('<script>const promos=['+row+'];</script>',0,2026).ranges;
+const row='["2026-11-23","2026-11-30","bfcm","Thanksgiving, Black Friday & Cyber Monday Sale"]';
+assert.deepEqual(inspect(row),[{start:'2026-11-23',end:'2026-11-30',label:'Thanksgiving, Black Friday & Cyber Monday Sale'}]);
+assert.equal(inspect(row+','+row).length,1);
+for(const bad of [row.replace('2026-11-23','2026-02-30'),row.replace('2026-11-23','2026-12-01'),row.replace('"bfcm"','runtimeCategory'),row.replace('2026-11-30','2026-11-31')])assert.equal(inspect(bad).length,0);
+const context={document:{createElement:()=>({})}};vm.createContext(context);vm.runInContext(fs.readFileSync(__dirname+'/../parameter-extension/range-ui.js','utf8'),context);
+const select={value:'',options:[],replaceChildren(){this.options=[]},appendChild(option){this.options.push(option)}};
+context.populateRangeDropdown(select,Array.from({length:5},()=>inspect(row)).flat());assert.equal(select.options.length,2);
+console.log('Passed four-column promo rows, date validation, dynamic rejection and merged iteration dropdown.');
